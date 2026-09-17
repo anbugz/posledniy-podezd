@@ -201,11 +201,13 @@
       ctx.fillStyle = PAL.enemyHp;
       ctx.fillRect(x - 23, y - 95, Math.round(46 * pct), 3);
 
-      // имя + волна
+      // имя + волна (эффективная, с учётом кругов)
+      const c = P.waveCycle(state.zones.apartment.wave, P.ZONES.apartment.wavesCap);
+      const waveLabel = c.cycle > 0 ? c.nEff + " (круг " + (c.cycle + 1) + ")" : String(c.nEff);
       ctx.fillStyle = PAL.text;
       ctx.font = "8px monospace";
       ctx.textAlign = "center";
-      ctx.fillText(e.name + " (волна " + state.zones.apartment.wave + ")", x, y - 102);
+      ctx.fillText(e.name + " (волна " + waveLabel + ")", x, y - 102);
     }
 
     function drawFloatersAndFlashes() {
@@ -272,7 +274,7 @@
           const hero = P.calcHero(state);
           if (Math.floor(t / 30) !== Math.floor((t - 1) / 30)) {
             const crit = Math.random() < hero.crit;
-            const dmg = Math.round(hero.dps * game.activeSkillMult() * (crit ? 2 : 1) * 0.5);
+            const dmg = Math.round(hero.dps * game.activeSkillMult() * (crit ? hero.critDmg : 1) * 0.5);
             addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, crit ? "#ffe87d" : "#e8e4f0");
             if (state.equipment.weapon && state.equipment.weapon.stats.dps >= 15) {
               flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: 8 });

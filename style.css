@@ -102,3 +102,53 @@ canvas {
 .r-epic { border-color: #c05ee8 !important; }
 .r-legendary { border-color: #e8b45e !important; }
 .r-mythic { border-color: #e85e5e !important; }
+
+/* «Самоделки» */
+.training { background: #141722; border: 1px solid #232739; padding: 10px; margin-bottom: 10px; }
+.training h2, .inventory h2 { font-size: 14px; color: #ffe87d; margin-bottom: 8px; }
+.section-sub { font-size: 11px; color: #8a86a0; font-weight: normal; }
+.training-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.train-card {
+  background: #0d0f16; border: 1px solid #232739; padding: 8px;
+  display: flex; flex-direction: column; gap: 4px; font-size: 11px;
+}
+.train-card .t-name { font-weight: bold; color: #e8e4f0; }
+.train-card .t-desc { color: #8a86a0; }
+.train-card .t-flavor { color: #5ea8e8; font-size: 10px; font-style: italic; }
+.train-card .t-lvl { color: #5ee87d; }
+.train-card button {
+  margin-top: 4px; padding: 6px; font-family: inherit; font-size: 11px;
+  background: #2e3248; color: #e8e4f0; border: 1px solid #5ee87d; cursor: pointer;
+}
+.train-card button:hover:not(:disabled) { background: #3a4060; }
+.train-card button:disabled { opacity: 0.4; cursor: not-allowed; border-color: #232739; }
+
+/* Инвентарь */
+.inventory { background: #141722; border: 1px solid #232739; padding: 10px; margin-bottom: 10px; }
+.equip-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.inventory-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.inv-btn {
+  padding: 6px 12px; font-family: inherit; font-size: 12px;
+  background: #2e3248; color: #e8e4f0; border: 1px solid #5ea8e8; cursor: pointer;
+}
+.inv-btn:hover:not(:disabled) { background: #3a4060; }
+.inv-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.bag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.item-card {
+  background: #0d0f16; border: 1px solid #232739; padding: 8px;
+  display: flex; flex-direction: column; gap: 4px; font-size: 11px;
+}
+.item-card .i-name { font-weight: bold; }
+.item-card .i-stats { color: #e8e4f0; }
+.item-card .i-affix { color: #c05ee8; font-size: 10px; }
+.item-card .i-lvl { color: #5ee87d; font-size: 10px; }
+.item-card .i-btns { display: flex; gap: 4px; margin-top: 4px; }
+.item-card .i-btns button {
+  flex: 1; padding: 4px; font-family: inherit; font-size: 10px;
+  background: #2e3248; color: #e8e4f0; border: 1px solid #5ea8e8; cursor: pointer;
+}
+.item-card .i-btns button:hover:not(:disabled) { background: #3a4060; }
+.item-card .i-btns button:disabled { opacity: 0.4; cursor: not-allowed; }
+.item-card .i-btns .b-sell { border-color: #e8b45e; }
+.item-card .i-btns .b-upg { border-color: #5ee87d; }
+.item-card.empty { color: #8a86a0; justify-content: center; align-items: center; min-height: 60px; }

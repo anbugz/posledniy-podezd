@@ -1,4 +1,5 @@
-/* «Последний подъезд» — UI: DOM-панель (HUD, зона, навыки, лут-попап, оффлайн-экран). */
+/* «Последний подъезд» — UI: DOM-панель (HUD, зона, навыки, «Самоделки»,
+   сумка, лут-попап, оффлайн-экран). Правки v2. */
 (function (P) {
   "use strict";
 
@@ -24,6 +25,18 @@
   }
   P.itemStatsText = itemStatsText;
 
+  function affixText(item) {
+    if (!item.affixes || !item.affixes.length) return "";
+    return item.affixes
+      .map((id) => {
+        const a = P.AFFIXES.find((x) => x.id === id);
+        return a ? "◆ " + a.name : "";
+      })
+      .filter(Boolean)
+      .join("<br>");
+  }
+  P.affixText = affixText;
+
   P.initPanel = function (game, battleView) {
     const state = game.state;
     const $ = (id) => document.getElementById(id);
@@ -33,6 +46,9 @@
       wave: $("wave"), winChance: $("winChance"),
       zoneLevel: $("zoneLevel"), zoneCost: $("zoneCost"), buyZone: $("buyZone"),
       skills: $("skills"),
+      trainCap: $("trainCap"), trainingGrid: $("training-grid"),
+      bagCount: $("bagCount"), bagGrid: $("bag-grid"), equipRow: $("equip-row"),
+      equipBest: $("equipBest"), sellCommon: $("sellCommon"),
       lootPopup: $("loot-popup"), lootBody: $("loot-body"), lootOk: $("loot-ok"),
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"),
@@ -42,8 +58,23 @@
     el.buyZone.addEventListener("click", () => {
       if (P.buyZoneLevel(state, "apartment")) {
         battleView.addFloater(240, 120, "Квартира улучшена!", "#5ee87d");
+        forceHeavy = true;
         refresh();
       }
+    });
+
+    // кнопки сумки
+    el.equipBest.addEventListener("click", () => {
+      const n = P.equipBest(state);
+      if (n > 0) battleView.addFloater(240, 120, "Надето лучшее: " + n, "#5ee87d");
+      forceHeavy = true;
+      refresh();
+    });
+    el.sellCommon.addEventListener("click", () => {
+      const g = P.sellAllCommon(state);
+      if (g > 0) battleView.addFloater(240, 120, "+" + g + " припасов", "#e8b45e");
+      forceHeavy = true;
+      refresh();
     });
 
     // кнопки навыков
@@ -61,19 +92,137 @@
       skillBtns[id] = btn;
     }
 
+    // «Самоделки»: карточки создаём один раз, обновляем в refresh
+    const trainBtns = {};
+    for (const key of Object.keys(P.TRAINING)) {
+      const def = P.TRAINING[key];
+      const card = document.createElement("div");
+      card.className = "train-card";
+      card.innerHTML =
+        "<span class='t-name'>" + def.name + "</span>" +
+        "<span class='t-desc'>" + def.desc + "</span>" +
+        "<span class='t-flavor'>" + def.flavor + "</span>" +
+        "<span class='t-lvl'></span>";
+      const btn = document.createElement("button");
+      btn.addEventListener("click", () => {
+        if (P.buyTraining(state, key)) {
+          forceHeavy = true;
+          refresh();
+        }
+      });
+      card.appendChild(btn);
+      el.trainingGrid.appendChild(card);
+      trainBtns[key] = { btn, lvl: card.querySelector(".t-lvl") };
+    }
+
+    /* Карточка предмета (сумка или экипировка). */
+    function itemCard(item, where, key) {
+      const card = document.createElement("div");
+      card.className = "item-card " + rarityClass(item.rarity);
+      let html = "<span class='i-name'>" + item.name + "</span>";
+      if (item.lvl) html += "<span class='i-lvl'>усилен +" + item.lvl + "</span>";
+      html += "<span class='i-stats'>" + itemStatsText(item) + "</span>";
+      const af = affixText(item);
+      if (af) html += "<span class='i-affix'>" + af + "</span>";
+      card.innerHTML = html;
+      const btns = document.createElement("div");
+      btns.className = "i-btns";
+
+      if (where === "bag") {
+        const bWear = document.createElement("button");
+        bWear.textContent = "Надеть";
+        bWear.title = "Сравнение с надетым: " +
+          (state.equipment[item.slot] ? itemStatsText(state.equipment[item.slot]) : "слот пуст");
+        bWear.addEventListener("click", () => {
+          if (P.equipItem(state, key)) { forceHeavy = true; refresh(); }
+        });
+        const bSell = document.createElement("button");
+        bSell.className = "b-sell";
+        bSell.textContent = "Продать";
+        bSell.addEventListener("click", () => {
+          const g = P.sellItem(state, key);
+          if (g > 0) battleView.addFloater(240, 120, "+" + g + " припасов", "#e8b45e");
+          forceHeavy = true;
+          refresh();
+        });
+        btns.appendChild(bWear);
+        btns.appendChild(bSell);
+      } else {
+        const bUpg = document.createElement("button");
+        bUpg.className = "b-upg";
+        bUpg.addEventListener("click", () => {
+          if (P.upgradeItem(state, "equip", key)) { forceHeavy = true; refresh(); }
+        });
+        btns.appendChild(bUpg);
+        card._upgBtn = bUpg;
+      }
+      card.appendChild(btns);
+      return card;
+    }
+
+    /* Тяжёлый рендер: сумка + экипировка + «Самоделки». Не чаще 4 раз/сек. */
+    let lastHeavy = 0;
+    let forceHeavy = true;
+    function renderHeavy() {
+      // Самоделки
+      const cap = P.trainCap(state);
+      el.trainCap.textContent = "потолок параметра: " + cap + " (2× уровень квартиры)";
+      for (const key of Object.keys(P.TRAINING)) {
+        const t = state.training[key];
+        const cost = P.trainCost(t);
+        const full = t >= cap;
+        trainBtns[key].lvl.textContent = "ур. " + t + (full ? " (макс)" : "");
+        trainBtns[key].btn.textContent = full ? "потолок" : "Качать — " + fmt(cost);
+        trainBtns[key].btn.disabled = full || state.supplies < cost;
+      }
+      // Экипировка
+      el.equipRow.innerHTML = "";
+      for (const slot of P.SLOTS) {
+        const it = state.equipment[slot];
+        if (!it) {
+          const empty = document.createElement("div");
+          empty.className = "item-card empty";
+          empty.textContent = P.SLOT_INFO[slot].name + " — пусто";
+          el.equipRow.appendChild(empty);
+          continue;
+        }
+        const card = itemCard(it, "equip", slot);
+        card._upgBtn.textContent = "Улучшить — " + fmt(P.itemUpgradeCost(it));
+        card._upgBtn.disabled = state.supplies < P.itemUpgradeCost(it);
+        el.equipRow.appendChild(card);
+      }
+      // Сумка
+      el.bagCount.textContent = state.bag.length + " / " + P.bagSize(state);
+      el.bagGrid.innerHTML = "";
+      if (!state.bag.length) {
+        const empty = document.createElement("div");
+        empty.className = "item-card empty";
+        empty.style.gridColumn = "1 / -1";
+        empty.textContent = "Сумка пуста — лут падает с волн.";
+        el.bagGrid.appendChild(empty);
+      }
+      state.bag.forEach((it, i) => {
+        el.bagGrid.appendChild(itemCard(it, "bag", i));
+      });
+      el.sellCommon.disabled = !state.bag.some((x) => x.rarity === "common");
+    }
+
     function refresh() {
       const hero = P.calcHero(state);
       const zone = state.zones.apartment;
+      const zdef = P.ZONES.apartment;
       el.supplies.textContent = fmt(Math.floor(state.supplies));
-      el.income.textContent = fmt(P.totalIncome(state)) + "/сек";
+      el.income.textContent = "за волну: " + fmt(Math.floor(P.waveSupplies(zone.wave) * hero.supMult));
       el.tech.textContent = fmt(state.tech);
-      el.dps.textContent = fmt(Math.round(hero.dps * 10) / 10);
+      el.dps.textContent = fmt(Math.round(hero.dpsEff * 10) / 10);
       el.hp.textContent = fmt(Math.ceil(state.hero.hp)) + "/" + fmt(hero.hpMax);
       el.armor.textContent = Math.round(hero.armor) + " (" + Math.round(hero.dr * 100) + "%)";
       el.crit.textContent = Math.round(hero.crit * 100) + "% крит";
 
-      const waveNum = Math.min(zone.wave, P.ZONES.apartment.wavesCap);
-      el.wave.textContent = waveNum + " / " + P.ZONES.apartment.wavesCap;
+      const c = P.waveCycle(zone.wave, zdef.wavesCap);
+      let waveText = c.nEff + " / " + zdef.wavesCap;
+      if (c.cycle > 0) waveText += " · круг " + (c.cycle + 1);
+      el.wave.textContent = waveText;
       if (game.combat.phase === "fight" && game.combat.enemy) {
         const chance = P.winChancePct(hero, game.combat.enemy, state.hero.hp);
         el.winChance.textContent = chance + "%";
@@ -102,27 +251,38 @@
         else cdEl.textContent = "готов";
         btn.disabled = locked || cdLeft > 0;
       }
+
+      if (forceHeavy || state.now - lastHeavy > 0.25) {
+        lastHeavy = state.now;
+        forceHeavy = false;
+        renderHeavy();
+      }
     }
 
-    // лут-попап (по одному из очереди)
+    // лут-попап (по одному из очереди; показываем редкий+ лут и авто-продажи)
     function showLoot() {
       if (el.lootPopup.classList.contains("visible") || game.lootQueue.length === 0) return;
       const loot = game.lootQueue.shift();
       const it = loot.item;
+      const notable = it.rarity === "rare" || it.rarity === "epic" ||
+        it.rarity === "legendary" || it.rarity === "mythic";
+      if (!notable && loot.toBag) { showLoot(); return; }
       let html = "";
-      if (loot.equipped) {
-        html += "<p class='loot-title'>Новый предмет надет!</p>";
-        html += "<div class='loot-item " + rarityClass(it.rarity) + "'><b>" + it.name + "</b><br>" + itemStatsText(it) + "</div>";
-        if (loot.replaced) {
-          html += "<p class='loot-vs'>заменил: " + loot.replaced.name + " (" + itemStatsText(loot.replaced) + ")</p>";
-        }
+      if (loot.toBag) {
+        html += "<p class='loot-title'>Новый предмет — в сумке!</p>";
+        html += "<div class='loot-item " + rarityClass(it.rarity) + "'><b>" + it.name + "</b><br>" + itemStatsText(it);
+        const af = affixText(it);
+        if (af) html += "<br><span class='i-affix'>" + af + "</span>";
+        html += "</div>";
+        html += "<p class='loot-vs'>Наденьте из сумки, когда будет минутка.</p>";
       } else {
-        html += "<p class='loot-title'>Предмет продан</p>";
+        html += "<p class='loot-title'>Сумка полна — предмет продан</p>";
         html += "<div class='loot-item " + rarityClass(it.rarity) + "'><b>" + it.name + "</b><br>" + itemStatsText(it) + "</div>";
-        html += "<p class='loot-vs'>хуже текущего → +" + loot.soldFor + " припасов</p>";
+        html += "<p class='loot-vs'>+" + loot.soldFor + " припасов</p>";
       }
       el.lootBody.innerHTML = html;
       el.lootPopup.classList.add("visible");
+      forceHeavy = true;
     }
     el.lootOk.addEventListener("click", () => {
       el.lootPopup.classList.remove("visible");
@@ -140,9 +300,12 @@
       html += "<li>Технологий: <b>+" + fmt(report.tech) + "</b></li>";
       html += "<li>Волн пройдено: <b>" + (report.wavesFrom) + " → " + report.wavesTo + "</b></li>";
       if (report.items.length) {
-        html += "<li>Предметов найдено: <b>" + report.items.length + "</b></li>";
+        html += "<li>Предметов найдено: <b>" + report.items.length + "</b> (в сумке)</li>";
       }
-      html += "</ul><p class='loot-vs'>Следующее действие: улучшите квартиру и жмите дальше.</p>";
+      if (report.zoneUnlocked) {
+        html += "<li>🔓 Открыто: <b>" + P.ZONES[report.zoneUnlocked].name + "</b></li>";
+      }
+      html += "</ul><p class='loot-vs'>Продайте лишнее, наденьте лучшее — и дальше.</p>";
       el.offlineBody.innerHTML = html;
       el.offline.classList.add("visible");
     }
