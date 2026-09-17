@@ -1,0 +1,104 @@
+/* «Последний подъезд» — стили */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0d0f16;
+  color: #e8e4f0;
+  font-family: "Courier New", monospace;
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.wrap { width: 720px; max-width: 100%; }
+
+.header h1 { font-size: 22px; color: #ffe87d; }
+.subtitle { font-size: 12px; color: #8a86a0; margin: 4px 0 12px; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tab {
+  background: #1a1d2a; color: #e8e4f0; border: 1px solid #2e3248;
+  padding: 6px 14px; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.tab.active { background: #2e3248; border-color: #5ea8e8; }
+.tab.locked { opacity: 0.45; cursor: not-allowed; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.stat {
+  background: #141722; border: 1px solid #232739;
+  padding: 8px 10px; display: flex; flex-direction: column;
+}
+.stat.main-stat { border-color: #5ee87d55; }
+.stat .label { font-size: 10px; color: #8a86a0; text-transform: uppercase; }
+.stat .value { font-size: 20px; font-weight: bold; color: #5ee87d; }
+.stat .sub { font-size: 10px; color: #8a86a0; }
+
+.stage { position: relative; margin-bottom: 10px; }
+canvas {
+  width: 100%; display: block;
+  image-rendering: pixelated;
+  border: 2px solid #232739; background: #000;
+}
+.saved-hint {
+  position: absolute; top: 8px; right: 8px;
+  background: #000a; padding: 3px 8px; font-size: 11px;
+  opacity: 0; transition: opacity 0.3s;
+}
+.saved-hint.visible { opacity: 1; }
+
+.control { display: flex; gap: 10px; margin-bottom: 10px; }
+.zone-box { flex: 1; background: #141722; border: 1px solid #232739; padding: 10px; }
+.zone-info { font-size: 13px; margin-bottom: 8px; }
+.zone-info b { color: #ffe87d; }
+.buy {
+  width: 100%; padding: 10px; font-family: inherit; font-size: 13px;
+  background: #2e3248; color: #e8e4f0; border: 1px solid #5ea8e8;
+  cursor: pointer;
+}
+.buy:hover:not(:disabled) { background: #3a4060; }
+.buy:disabled { opacity: 0.45; cursor: not-allowed; }
+.zone-hint { font-size: 11px; color: #8a86a0; margin-top: 6px; }
+
+.skills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 300px; }
+.skill {
+  background: #141722; border: 1px solid #232739; color: #e8e4f0;
+  font-family: inherit; font-size: 11px; padding: 8px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+}
+.skill:hover:not(:disabled) { border-color: #ffe87d; }
+.skill:disabled { opacity: 0.45; cursor: not-allowed; }
+.skill.active { border-color: #5ee87d; box-shadow: 0 0 8px #5ee87d44; }
+.skill.locked { opacity: 0.3; }
+.skill .s-name { font-weight: bold; }
+.skill .s-cd { font-size: 10px; color: #8a86a0; }
+
+.footer { display: flex; justify-content: space-between; font-size: 11px; color: #8a86a0; }
+
+/* оверлеи */
+.overlay {
+  position: fixed; inset: 0; background: #000c;
+  display: none; align-items: center; justify-content: center; z-index: 10;
+}
+.overlay.visible { display: flex; }
+.modal {
+  background: #141722; border: 2px solid #5ea8e8; padding: 20px;
+  width: 380px; max-width: 90%;
+}
+.loot-title { font-size: 14px; color: #ffe87d; margin-bottom: 10px; }
+.loot-item { background: #0d0f16; border: 1px solid #232739; padding: 10px; font-size: 13px; margin-bottom: 8px; }
+.loot-vs { font-size: 11px; color: #8a86a0; margin-bottom: 12px; }
+.modal-btn {
+  width: 100%; padding: 10px; font-family: inherit; font-size: 13px;
+  background: #2e3248; color: #e8e4f0; border: 1px solid #5ee87d; cursor: pointer;
+}
+.modal-btn:hover { background: #3a4060; }
+#offline-body ul { list-style: none; margin-bottom: 10px; }
+#offline-body li { font-size: 13px; padding: 3px 0; }
+
+/* редкости предметов */
+.r-common { border-color: #8a86a0 !important; }
+.r-uncommon { border-color: #5ee87d !important; }
+.r-rare { border-color: #5ea8e8 !important; }
+.r-epic { border-color: #c05ee8 !important; }
+.r-legendary { border-color: #e8b45e !important; }
+.r-mythic { border-color: #e85e5e !important; }

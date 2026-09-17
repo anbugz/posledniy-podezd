@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Последний подъезд — idle auto-battle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <h1>🛸 Последний подъезд</h1>
+      <p class="subtitle">Он проснулся от сирен. Мусор выносить всё равно надо.</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active">Квартира</button>
+      <button class="tab locked" disabled title="Зачистите квартиру (волна 20)">Подъезд 🔒</button>
+      <button class="tab locked" disabled>Дом 🔒</button>
+    </nav>
+
+    <section class="stats">
+      <div class="stat main-stat">
+        <span class="label">Припасы</span>
+        <span class="value" id="supplies">0</span>
+        <span class="sub" id="income">0/сек</span>
+      </div>
+      <div class="stat">
+        <span class="label">Технологии</span>
+        <span class="value" id="tech">0</span>
+        <span class="sub">пригодятся позже</span>
+      </div>
+      <div class="stat">
+        <span class="label">DPS</span>
+        <span class="value" id="dps">0</span>
+        <span class="sub" id="crit">5% крит</span>
+      </div>
+      <div class="stat">
+        <span class="label">HP</span>
+        <span class="value" id="hp">0</span>
+        <span class="sub" id="armor">0 брони</span>
+      </div>
+    </section>
+
+    <div class="stage">
+      <canvas id="battle" width="480" height="270"></canvas>
+      <div id="saved-hint" class="saved-hint">Сохранено</div>
+    </div>
+
+    <section class="control">
+      <div class="zone-box">
+        <div class="zone-info">
+          <span>Волна: <b id="wave">1 / 20</b> · Шанс победы: <b id="winChance">—</b></span>
+        </div>
+        <button id="buyZone" class="buy">
+          🏠 Улучшить квартиру (ур. <b id="zoneLevel">1</b>) — <b id="zoneCost">25</b> припасов
+        </button>
+        <p class="zone-hint">Уровень квартиры: больше HP, доход и тренировки (+2 DPS за уровень).</p>
+      </div>
+      <div class="skills" id="skills"></div>
+    </section>
+
+    <footer class="footer">
+      <span>Автобой идёт сам — вы решаете, куда развиваться.</span>
+      <span class="hint">Автосейв каждые 15 с · оффлайн-прогресс до 12 ч</span>
+    </footer>
+  </main>
+
+  <!-- Попап нового предмета -->
+  <div class="overlay" id="loot-popup">
+    <div class="modal">
+      <div id="loot-body"></div>
+      <button id="loot-ok" class="modal-btn">Понял, принято</button>
+    </div>
+  </div>
+
+  <!-- Экран возвращения после оффлайна -->
+  <div class="overlay" id="offline-screen">
+    <div class="modal">
+      <div id="offline-body"></div>
+      <button id="offline-ok" class="modal-btn">Вернуться к обороне</button>
+    </div>
+  </div>
+
+  <script src="js/ns.js"></script>
+  <script src="js/data_zones.js"></script>
+  <script src="js/data_enemies.js"></script>
+  <script src="js/data_items.js"></script>
+  <script src="js/data_skills.js"></script>
+  <script src="js/engine_stats.js"></script>
+  <script src="js/engine_combat.js"></script>
+  <script src="js/engine_loot.js"></script>
+  <script src="js/engine_econ.js"></script>
+  <script src="js/engine_save.js"></script>
+  <script src="js/engine_game.js"></script>
+  <script src="js/ui_battle.js"></script>
+  <script src="js/ui_panel.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
