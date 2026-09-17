@@ -1,10 +1,12 @@
 /* «Последний подъезд» — data: враги.
-   Формулы откалиброваны balance_sim.py (2026-09-17). */
+   Формулы откалиброваны balance_sim.py (2026-09-17, правки v2).
+   Правки v2: рост HP 1.20 → 1.15, общий штраф −25% к HP, после wavesCap
+   волны идут по кругу с ростом WAVE_LOOP_MULT за круг. */
 (function (P) {
   "use strict";
 
   P.ENEMY = {
-    hpBase: 30, hpGrow: 1.20, hpTier: 2.0,
+    hpBase: 30, hpGrow: 1.15, hpTier: 2.0, hpGlobal: 0.75,
     dpsBase: 3, dpsGrow: 1.16, dpsTier: 1.8,
     eliteEvery: 5, eliteHp: 2.5, eliteDps: 1.5,
     bossEvery: 10, bossHp: 6.0, bossDps: 2.5,
@@ -12,18 +14,30 @@
     techChance: 0.30, techElite: 5, techBoss: 20,
   };
 
-  // Волна n в зоне тира z -> {hp, dps, kind: 'norm'|'elite'|'boss', name}
-  P.enemyStats = function (n, z) {
+  /* Абсолютный номер волны -> эффективная волна внутри круга и номер круга.
+     После wavesCap волн квартира «защищена», но волны повторяются бесконечно,
+     каждый круг сильнее (источник фарма до открытия следующей зоны). */
+  P.waveCycle = function (n, cap) {
+    cap = cap || 20;
+    const cycle = Math.floor((n - 1) / cap);
+    const nEff = ((n - 1) % cap) + 1;
+    return { nEff, cycle };
+  };
+
+  // Волна n (абсолютная) в зоне тира z -> {hp, dps, kind, name, cycle}
+  P.enemyStats = function (n, z, cap) {
     const E = P.ENEMY;
-    let hp = E.hpBase * Math.pow(E.hpGrow, n) * Math.pow(E.hpTier, z);
-    let dps = E.dpsBase * Math.pow(E.dpsGrow, n) * Math.pow(E.dpsTier, z);
+    const c = P.waveCycle(n, cap);
+    const loopMult = Math.pow(P.CONFIG.WAVE_LOOP_MULT, c.cycle);
+    let hp = E.hpBase * Math.pow(E.hpGrow, c.nEff) * Math.pow(E.hpTier, z) * E.hpGlobal * loopMult;
+    let dps = E.dpsBase * Math.pow(E.dpsGrow, c.nEff) * Math.pow(E.dpsTier, z) * loopMult;
     let kind = "norm";
-    if (n % E.bossEvery === 0) {
+    if (c.nEff % E.bossEvery === 0) {
       hp *= E.bossHp; dps *= E.bossDps; kind = "boss";
-    } else if (n % E.eliteEvery === 0) {
+    } else if (c.nEff % E.eliteEvery === 0) {
       hp *= E.eliteHp; dps *= E.eliteDps; kind = "elite";
     }
-    return { hp: Math.floor(hp), dps, kind, name: P.enemyName(n, kind) };
+    return { hp: Math.floor(hp), dps, kind, name: P.enemyName(c.nEff, kind), cycle: c.cycle };
   };
 
   P.enemyName = function (n, kind) {

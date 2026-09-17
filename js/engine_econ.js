@@ -1,24 +1,11 @@
-/* «Последний подъезд» — engine: экономика зон (ТЗ §5). */
+/* «Последний подъезд» — engine: экономика (ТЗ §5, правки v2).
+   Пассивный доход зон УБРАН — припасы только с волн, продажи лута
+   и траты на прокачку. Уровень квартиры даёт +20 HP, потолок
+   «Самоделок» и открывает прогрессию. */
 (function (P) {
   "use strict";
 
-  /* Доход зоны: floor(baseIncome * L * incomeGrow^L) */
-  P.zoneIncome = function (zoneId, level) {
-    const z = P.ZONES[zoneId];
-    return Math.floor(z.baseIncome * level * Math.pow(z.incomeGrow, level));
-  };
-
-  /* Суммарный доход всех открытых зон */
-  P.totalIncome = function (state) {
-    let sum = 0;
-    for (const id of P.ZONE_ORDER) {
-      const z = state.zones[id];
-      if (z && z.unlocked) sum += P.zoneIncome(id, z.level);
-    }
-    return sum;
-  };
-
-  /* Стоимость следующего уровня зоны: floor(baseCost * costGrow^L) */
+  /* Стоимость следующего уровня квартиры: floor(baseCost * costGrow^L) */
   P.zoneCost = function (zoneId, level) {
     const z = P.ZONES[zoneId];
     return Math.floor(z.baseCost * Math.pow(z.costGrow, level));

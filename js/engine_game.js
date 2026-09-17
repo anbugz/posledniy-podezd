@@ -21,15 +21,18 @@
         state.stats.wavesCleared++;
         state.stats.kills++;
         const zdef = P.ZONES.apartment;
-        const sup = P.waveSupplies(ev.wave);
+        const hero = P.calcHero(state);
+        const sup = Math.floor(P.waveSupplies(ev.wave) * hero.supMult);
         state.supplies += sup;
         state.totalSupplies += sup;
         // технологии: множитель шанса ночью и на ивенте
         const nightMult = isNight() ? P.DAY_NIGHT.night.techChance : 1;
         const evMult = isEvent() ? P.EVENT.techChance : 1;
         state.tech += P.rollTech(ev.enemy.kind, nightMult * evMult);
-        // лут
-        const loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false);
+        // лут: гарантированное оружие на волне 3, иначе обычный бросок
+        let loot = null;
+        if (ev.wave === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier);
+        else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false);
         if (loot) game.lootQueue.push(loot);
         hooks.onWaveWin && hooks.onWaveWin(ev);
       } else if (ev.type === "knockout") {
@@ -94,11 +97,6 @@
     game.update = function (dt) {
       state.now += dt;
 
-      // доход зон
-      const income = P.totalIncome(state) * dt;
-      state.supplies += income;
-      state.totalSupplies += income;
-
       // день/ночь
       const dn = state.dayNight;
       dn.phaseEndsAt -= dt;
@@ -110,7 +108,7 @@
         } else {
           dn.phase = "day";
           dn.phaseEndsAt = P.DAY_NIGHT.daySec;
-          game.banner = { text: "☀ ДЕНЬ: зоны копят припасы", until: state.now + 5 };
+          game.banner = { text: "☀ ДЕНЬ: спокойнее, можно перебить припасы", until: state.now + 5 };
         }
         hooks.onDayNight && hooks.onDayNight(dn.phase);
       }

@@ -1,5 +1,6 @@
-/* «Последний подъезд» — data: предметы, редкости, генерация лута.
-   Предметы НЕ создаются вручную — генерируются из слота/тира/редкости. */
+/* «Последний подъезд» — data: предметы, редкости, аффиксы, генерация лута.
+   Предметы НЕ создаются вручную — генерируются из слота/тира/редкости.
+   Правки v2: аффиксы (≥ Необычный), уровень прокачки предмета (+15%/уровень). */
 (function (P) {
   "use strict";
 
@@ -31,6 +32,17 @@
 
   P.RARITY_MULT = { common: 1.0, uncommon: 1.6, rare: 2.6, epic: 4.2, legendary: 6.8, mythic: 11.0 };
 
+  /* Аффиксы (правки v2). Каждый — отдельная механика; счётчик на предмете
+     суммируется в calcHero. */
+  P.AFFIXES = [
+    { id: "stockpile", name: "+15% припасов с волн" },
+    { id: "regen",     name: "реген 1% HP в бою" },
+    { id: "critdmg",   name: "+10% крит-урон" },
+    { id: "double",    name: "10% ударить дважды" },
+  ];
+  // сколько аффиксов падает на редкость
+  P.AFFIX_COUNT = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 3, mythic: 3 };
+
   const SLOT_BASE = { weapon: 6, helmet: 12, armor: 18, gloves: 3, boots: 10, accessory: 6 };
   const TIER_MULT = 1.8;
 
@@ -51,7 +63,8 @@
 
   /* Генерация предмета.
      budget = slotBase * tierMult^tier * rarityMult
-     главный стат слота + 0..2 вторичных (шанс по редкости), вариация ±15%. */
+     главный стат слота + 0..2 вторичных (шанс по редкости), вариация ±15%.
+     Аффиксы: AFFIX_COUNT[rarity] штук, без повторов. */
   P.generateItem = function (slot, tier, rarity, rng) {
     rng = rng || Math.random;
     const mult = P.RARITY_MULT[rarity] || 1;
@@ -86,24 +99,52 @@
     // округление
     for (const k of Object.keys(stats)) stats[k] = Math.max(1, Math.round(stats[k] * 10) / 10);
 
-    return { slot, rarity, tier, name: P.itemName(slot, tier), stats };
+    // аффиксы без повторов
+    const affixes = [];
+    const want = P.AFFIX_COUNT[rarity] || 0;
+    const pool = P.AFFIXES.slice();
+    for (let i = 0; i < want && pool.length; i++) {
+      const idx = Math.floor(rng() * pool.length);
+      affixes.push(pool.splice(idx, 1)[0].id);
+    }
+
+    return { slot, rarity, tier, name: P.itemName(slot, tier), stats, affixes, lvl: 0 };
   };
 
-  /* Оценочный «score» предмета для автонадевания */
+  /* Прокачка предмета: +15% к статам за уровень (правки v2). */
+  P.upgradeItemStats = function (item) {
+    const C = P.CONFIG;
+    item.lvl = (item.lvl || 0) + 1;
+    for (const k of Object.keys(item.stats)) {
+      item.stats[k] = Math.max(1, Math.round(item.stats[k] * C.ITEM_UPGRADE_MULT * 10) / 10);
+    }
+    return item;
+  };
+
+  /* Цена прокачки: floor(base * grow^L) + 10% от score (L = текущий уровень). */
+  P.itemUpgradeCost = function (item) {
+    const C = P.CONFIG;
+    const lvl = item.lvl || 0;
+    return Math.floor(C.ITEM_UPGRADE_BASE * Math.pow(C.ITEM_UPGRADE_GROW, lvl)) +
+      Math.floor(P.itemScore(item) * 0.1);
+  };
+
+  /* Оценочный «score» предмета (надевание, продажа, прокачка). */
   P.itemScore = function (item) {
     if (!item) return 0;
     const s = item.stats;
-    return (s.dps || 0) * 4 + (s.hp || 0) * 1 + (s.armor || 0) * 3 + (s.crit || 0) * 40;
+    const base = (s.dps || 0) * 4 + (s.hp || 0) * 1 + (s.armor || 0) * 3 + (s.crit || 0) * 40;
+    return base * (1 + 0.08 * (item.affixes ? item.affixes.length : 0));
   };
 
   /* Стартовый набор героя (квартира, тир 1) */
   P.startingEquipment = function () {
     return {
-      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", stats: { dps: 6 } },
+      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", stats: { dps: 6 }, affixes: [], lvl: 0 },
       helmet: null,
-      armor:  { slot: "armor", rarity: "common", tier: 1, name: "Куртка «аляска»", stats: { hp: 10, armor: 5 } },
+      armor:  { slot: "armor", rarity: "common", tier: 1, name: "Куртка «аляска»", stats: { hp: 10, armor: 5 }, affixes: [], lvl: 0 },
       gloves: null,
-      boots:  { slot: "boots", rarity: "common", tier: 1, name: "Кроссовки «марафон»", stats: { hp: 10 } },
+      boots:  { slot: "boots", rarity: "common", tier: 1, name: "Кроссовки «марафон»", stats: { hp: 10 }, affixes: [], lvl: 0 },
       accessory: null,
     };
   };

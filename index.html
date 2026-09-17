@@ -23,7 +23,7 @@
       <div class="stat main-stat">
         <span class="label">Припасы</span>
         <span class="value" id="supplies">0</span>
-        <span class="sub" id="income">0/сек</span>
+        <span class="sub" id="income">с волн</span>
       </div>
       <div class="stat">
         <span class="label">Технологии</span>
@@ -55,9 +55,24 @@
         <button id="buyZone" class="buy">
           🏠 Улучшить квартиру (ур. <b id="zoneLevel">1</b>) — <b id="zoneCost">25</b> припасов
         </button>
-        <p class="zone-hint">Уровень квартиры: больше HP, доход и тренировки (+2 DPS за уровень).</p>
+        <p class="zone-hint">Квартира: +20 HP за уровень и выше потолок «Самоделок» (2× уровень). Дохода нет — припасы только с волн и лута.</p>
       </div>
       <div class="skills" id="skills"></div>
+    </section>
+
+    <section class="training">
+      <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
+      <div class="training-grid" id="training-grid"></div>
+    </section>
+
+    <section class="inventory">
+      <h2>🎒 Сумка <span class="section-sub" id="bagCount"></span></h2>
+      <div class="equip-row" id="equip-row"></div>
+      <div class="inventory-actions">
+        <button id="equipBest" class="inv-btn">✨ Надеть лучшее</button>
+        <button id="sellCommon" class="inv-btn">💰 Продать всё серое</button>
+      </div>
+      <div class="bag-grid" id="bag-grid"></div>
     </section>
 
     <footer class="footer">

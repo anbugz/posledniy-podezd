@@ -3,14 +3,13 @@
 (function (P) {
   "use strict";
 
-  // tier — множитель сложности/лутa зоны; baseIncome/baseCost — экономика зоны
+  // tier — множитель сложности/лутa зоны; baseCost/costGrow — апгрейд зоны.
+  // Пассивного дохода нет (правки v2): припасы только с волн и продажи лута.
   P.ZONES = {
     apartment: {
       id: "apartment",
       name: "Квартира",
       tier: 1,
-      baseIncome: 2,
-      incomeGrow: 1.08,
       baseCost: 25,
       costGrow: 1.6,
       wavesCap: 20,
@@ -22,8 +21,6 @@
       id: "entrance",
       name: "Подъезд",
       tier: 2,
-      baseIncome: 8,
-      incomeGrow: 1.08,
       baseCost: 200,
       costGrow: 1.6,
       wavesCap: 25,

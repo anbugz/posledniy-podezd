@@ -22,6 +22,16 @@
     panel.refresh();
     if (loaded.report) panel.showOffline(loaded.report);
 
+    // dev: ?ff=СЕКУНДЫ — синхронный fast-forward до первого кадра (снимки/проверки)
+    if (typeof location !== "undefined") {
+      const m = /[?&]ff=(\d+)/.exec(location.search);
+      if (m) {
+        const steps = Math.min(parseInt(m[1], 10), 3600) / 0.05;
+        for (let i = 0; i < steps; i++) game.update(0.05);
+        panel.refresh();
+      }
+    }
+
     // автосейв
     setInterval(() => {
       P.save(state);
