@@ -400,6 +400,32 @@ function approx(a, b, eps, msg) {
   assert(s.autoFarm === false, "autoFarm выключен по умолчанию");
 }
 
+// ---------- ретроактивное открытие зон для старых сейвов ----------
+{
+  // старый сейв: подъезд пройден далеко за пределы круга, но двор не открыт
+  const old = {
+    version: 2, supplies: 100, tech: 0, totalSupplies: 100,
+    hero: { hp: 150 }, equipment: P.startingEquipment(),
+    zones: {
+      apartment: { unlocked: true, level: 1, wave: 411 },
+      entrance: { unlocked: true, level: 1, wave: 411 },
+    },
+    skills: {}, dayNight: null, event: null,
+    stats: {}, lastTick: Date.now(),
+  };
+  const s = P.migrate(old);
+  assert(s.zones.yard.unlocked === true, "двор открылся ретроактивно из старого сейва");
+  assert(s.veteranUnlocked !== true, "ветеран не открыт — двор ещё не зачищен");
+  // двор зачищен в старом сейве -> дом и ветеран
+  old.zones.yard = { unlocked: true, level: 1, wave: 45 };
+  const s2 = P.migrate(old);
+  assert(s2.zones.house.unlocked === true, "дом открылся ретроактивно");
+  assert(s2.veteranUnlocked === true, "ветеран открыт зачисткой двора в старом сейве");
+  // свежий сейв не открывает ничего лишнего
+  const s3 = P.migrate(JSON.parse(JSON.stringify(P.defaultState())));
+  assert(s3.zones.entrance.unlocked === false, "свежий сейв: подъезд закрыт");
+}
+
 // ---------- мультизоны: переключение, цепочка открытий, хаб ----------
 {
   const state = P.defaultState();

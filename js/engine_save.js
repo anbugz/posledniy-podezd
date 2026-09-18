@@ -90,6 +90,18 @@
       // старые сейвы без maxWave: потолок не ниже уже достигнутой волны
       s.zones[id].maxWave = Math.max(s.zones[id].maxWave || 1, s.zones[id].wave || 1);
     }
+    // v3.2: ретроактивное открытие — если круг зоны уже зачищен в старом сейве,
+    // следующая зона и гейты открываются без повторного убийства босса
+    for (const id of P.ZONE_ORDER) {
+      const zdef = P.ZONES[id];
+      const z = s.zones[id];
+      if ((z.maxWave || 1) < zdef.wavesCap) continue;
+      if (zdef.next && s.zones[zdef.next] && !s.zones[zdef.next].unlocked)
+        s.zones[zdef.next].unlocked = true;
+      if (id === "yard") s.veteranUnlocked = true;
+      if (id === "house") s.hubUnlocked = true;
+      if (id === "district") s.upgradesUnlocked = true;
+    }
     s.skills = Object.assign(d.skills, raw.skills);
     s.stats = Object.assign(d.stats, raw.stats);
     // v3.2: старый autoSell > 0 означал включённую авто-продажу

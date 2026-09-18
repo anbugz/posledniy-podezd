@@ -229,6 +229,18 @@
         btn.disabled = !z.unlocked;
         btn.classList.toggle("active", state.activeZone === zid);
         btn.textContent = z.unlocked ? P.ZONES[zid].name : P.ZONES[zid].name + " 🔒";
+        if (!z.unlocked) {
+          // как открыть: найти зону, которая ведёт в эту
+          const prevId = P.ZONE_ORDER.find((p) => P.ZONES[p].next === zid);
+          const prev = prevId ? P.ZONES[prevId] : null;
+          btn.title = prev
+            ? "Откроется зачисткой: " + prev.name +
+              " (волна " + prev.wavesCap + "/" + prev.wavesCap +
+              ", сейчас рекорд " + (state.zones[prevId].maxWave || 1) + ")"
+            : "Зона пока недоступна";
+        } else {
+          btn.title = P.ZONES[zid].name;
+        }
       }
     }
 
@@ -581,7 +593,11 @@
       let waveText = c.nEff + " / " + zdef.wavesCap;
       if (c.cycle > 0) waveText += " · круг " + (c.cycle + 1);
       el.wave.textContent = waveText;
-      el.maxWave.textContent = zone.maxWave || 1;
+      // «макс» понятнее в кругах: рекорд 411 = 21 круг, показываем круг
+      const mc = P.waveCycle(zone.maxWave || 1, zdef.wavesCap);
+      el.maxWave.textContent = mc.cycle > 0
+        ? "круг " + (mc.cycle + 1) + " (волна " + mc.nEff + ")"
+        : String(zone.maxWave || 1);
       const canSwitch = game.combat.phase !== "fight";
       el.wavePrev.disabled = !canSwitch || zone.wave <= 1;
       el.waveNext.disabled = !canSwitch || zone.wave >= (zone.maxWave || 1);
