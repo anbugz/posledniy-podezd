@@ -69,7 +69,14 @@
       acc += Math.min((now - last) / 1000, 0.5);
       last = now;
       while (acc >= STEP) {
-        game.update(STEP);
+        if (panel.isBaseOpen()) {
+          // «Возврат» на базе: бой, день/ночь и кулдауны стоят,
+          // HP регенится (как вне боя, 5%/сек)
+          const hero = P.calcHero(state);
+          state.hero.hp = Math.min(hero.hpMax, state.hero.hp + hero.hpMax * 0.05 * STEP);
+        } else {
+          game.update(STEP);
+        }
         acc -= STEP;
       }
       battleView.render(now / 50);

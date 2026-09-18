@@ -27,11 +27,11 @@ CRIT_MULT = 2.0
 
 # враги: HP = E_HP_BASE * 1.15^n * tier^z * 0.75 ; круги ×1.30
 E_HP_BASE, E_HP_GROW, E_HP_TIER, E_HP_GLOBAL = 30.0, 1.15, 2.0, 0.75
-E_DPS_BASE, E_DPS_GROW, E_DPS_TIER = 3.0, 1.16, 1.8
+E_DPS_BASE, E_DPS_GROW, E_DPS_TIER = 2.4, 1.14, 1.8
 E_LOOP_MULT = 1.30
-ELITE_EVERY = 5          # каждая 5-я (не босс): HP x2.5, DPS x1.5
+ELITE_EVERY = 5          # каждая 5-я (не босс): HP x2.5, DPS x1.3
 BOSS_EVERY = 10
-BOSS_HP_MULT, BOSS_DPS_MULT = 6.0, 2.5
+BOSS_HP_MULT, BOSS_DPS_MULT = 6.0, 1.8
 WAVES_CAP = 20
 
 # герой
@@ -234,15 +234,29 @@ class Bot:
 
 def run(verbose=False):
     b = Bot()
+    # гейтинг v3.2: тренировки — после Двора (40 волн), квартира — после Дома (60),
+    # улучшение оружия — после Района (100). Бот «открывает» их по мере прохождения.
+    def spend():
+        changed = True
+        while changed:
+            changed = False
+            if b.waves_done >= 60 and b.buy_apt():
+                changed = True
+            if b.waves_done >= 40:
+                for key in ("str", "vit", "def", "acc"):
+                    if b.buy_train(key):
+                        changed = True
+            if b.waves_done >= 100 and b.upgrade_weapon():
+                changed = True
     while b.t < SIM_MINUTES * 60:
         r = b.fight_wave()
         if r[1]:  # победа
             b.t += r[0] + WAVE_GAP_SEC
-            b.spend()
+            spend()
     # итоги
     print(f"--- {SIM_MINUTES} мин активной игры ---")
-    print(f"квартира ур.      : {b.apt_level}   (цель 3-6)")
-    print(f"волн пройдено     : {b.waves_done} (след. волна {b.wave})  (цель 9-12)")
+    print(f"квартира ур.      : {b.apt_level}   (цель 1 — хаб закрыт первые 60 волн)")
+    print(f"волн пройдено     : {b.waves_done} (след. волна {b.wave})  (цель 7-14 без прокачек)")
     print(f"припасы на руках  : {b.supplies:.0f}")
     print(f"технологии        : {b.tech}")
     print(f"DPS героя         : {b.dps:.1f} (eff {b.dps_eff:.1f}, оружие +{b.weapon_lvl} ур.)  "
@@ -257,7 +271,7 @@ def run(verbose=False):
         for line in b.log:
             print("  " + line)
     boss10 = b.fight_times.get(10)
-    ok = (3 <= b.apt_level <= 6 and 9 <= b.waves_done <= 12
+    ok = (b.apt_level == 1 and 7 <= b.waves_done <= 14
           and (not early or max(early) <= 12)
           and (boss10 is None or 15 <= boss10 <= 150))
     print("ЦЕЛИ:", "OK" if ok else "НЕ СОШЛОСЬ — крутим коэффициенты")

@@ -24,12 +24,18 @@
       zones: {
         apartment: { unlocked: true, level: 1, wave: 1, maxWave: 1 },
         entrance: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
+        yard: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
         house: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
+        district: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
       },
       activeZone: "apartment",
       autoFarm: false,
-      autoSell: 0,           // 0=выкл; N=продавать всё не выше N-й редкости
-      hubUnlocked: false,    // зачистка Дома -> база становится Хабом
+      // порог продажи по редкости: 0=выкл, 1=Обычный..4=Эпический (индекс+1)
+      autoSell: 0,
+      autoSellOn: false,     // авто-продажа по порогу (иначе — только кнопкой)
+      hubUnlocked: false,    // зачистка Дома -> база/хаб
+      veteranUnlocked: false, // зачистка Двора -> «Самоделки»
+      upgradesUnlocked: false, // зачистка Района -> улучшение предметов
       skills,
       dayNight: { phase: "day", phaseEndsAt: 180 },
       event: { nextAt: 600, activeUntil: 0 },
@@ -86,6 +92,8 @@
     }
     s.skills = Object.assign(d.skills, raw.skills);
     s.stats = Object.assign(d.stats, raw.stats);
+    // v3.2: старый autoSell > 0 означал включённую авто-продажу
+    s.autoSellOn = raw.autoSellOn != null ? !!raw.autoSellOn : (raw.autoSell || 0) > 0;
     return s;
   };
 
@@ -148,10 +156,10 @@
       state.tech += P.rollTech(enemy.kind, 0.5);
       // гарантированное оружие на 3-й волне круга
       if (P.waveCycle(zone.wave, zdef.wavesCap).nEff === 3) {
-        const loot = P.rollGuaranteedWeapon(state, zdef.tier);
+        const loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, zone.wave);
         if (loot) report.items.push(loot);
       } else {
-        const loot = P.rollLoot(state, enemy.kind, zdef.tier, true);
+        const loot = P.rollLoot(state, enemy.kind, zdef.tier, true, Math.random, zone.wave);
         if (loot) report.items.push(loot);
       }
       // зачистка круга оффлайн -> открываем подъезд

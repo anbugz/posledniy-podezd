@@ -15,7 +15,7 @@
       <div class="brand">🛸 Последний подъезд</div>
       <nav class="screen-tabs">
         <button id="tab-battle" class="stab active">⚔ Бой</button>
-        <button id="tab-base" class="stab">🏠 База</button>
+        <button id="tab-base" class="stab" title="Откроется зачисткой Дома">🏠 База 🔒</button>
       </nav>
       <button id="openChar" class="char-btn" title="Параметры персонажа">👤</button>
     </header>
@@ -80,7 +80,8 @@
     <section id="screen-base" class="hidden">
       <div id="hub-head"></div>
       <div class="zone-cards" id="zone-cards"></div>
-      <section class="training">
+      <div id="veteran-note"></div>
+      <section class="training hidden" id="training-section">
         <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
         <div class="training-grid" id="training-grid"></div>
       </section>
@@ -98,15 +99,17 @@
       <div class="modal-head">
         <span class="modal-title">🎒 Сумка <span class="section-sub" id="bagCount"></span></span>
         <div class="modal-tools">
-          <label class="autosell-label">Авто-продажа:
+          <label class="autosell-label">Порог:
             <select id="autoSellSel">
               <option value="0">выкл</option>
-              <option value="1">Обычный и ниже</option>
-              <option value="2">Необычный и ниже</option>
-              <option value="3">Редкий и ниже</option>
-              <option value="4">Эпический и ниже</option>
+              <option value="1">Обычный</option>
+              <option value="2">Необычный</option>
+              <option value="3">Редкий</option>
+              <option value="4">Эпический</option>
             </select>
           </label>
+          <label class="autosell-label"><input type="checkbox" id="autoSellOn"> авто</label>
+          <button id="sellBelow" class="inv-btn" title="Одноразово продать всё не выше порога">💰 Продать всё ниже</button>
           <button id="equipBest" class="inv-btn">✨ Надеть лучшее</button>
           <button id="inv-close" class="modal-x" title="Закрыть">✕</button>
         </div>
@@ -128,14 +131,6 @@
         <button id="char-close" class="modal-x" title="Закрыть">✕</button>
       </div>
       <div id="char-body"></div>
-    </div>
-  </div>
-
-  <!-- Попап нового предмета -->
-  <div class="overlay" id="loot-popup">
-    <div class="modal">
-      <div id="loot-body"></div>
-      <button id="loot-ok" class="modal-btn">Понял, принято</button>
     </div>
   </div>
 

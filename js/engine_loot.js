@@ -8,11 +8,25 @@
   const LOOT_CHANCE = 0.09;    // шанс предмета с обычной волны (ресайл v3.1: вещей ~в 5 раз меньше)
   const SELL_RATIO = 0.5;      // доля бюджета припасами при продаже
 
-  /* Порядок редкостей для авто-продажи: всё, что не выше порога, продаётся сразу. */
+  /* Порог редкости для продажи: авто (autoSellOn) или кнопкой «продать всё ниже». */
   P.RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
   P.autoSellThreshold = function (state) {
-    const n = state.autoSell || 0;
-    return n > 0 ? P.RARITY_ORDER[n - 1] : null;
+    if (!(state.autoSellOn && state.autoSell > 0)) return null;
+    return P.RARITY_ORDER[state.autoSell - 1];
+  };
+
+  /* Одноразовая продажа всего не выше порога (индекс редкости <= n).
+     Возвращает выручку. */
+  P.sellBelowRarity = function (state, n) {
+    let gained = 0;
+    for (let i = state.bag.length - 1; i >= 0; i--) {
+      if (P.RARITY_ORDER.indexOf(state.bag[i].rarity) <= n) {
+        gained += Math.max(1, Math.floor(P.itemScore(state.bag[i]) * SELL_RATIO / 4));
+        state.bag.splice(i, 1);
+      }
+    }
+    state.supplies += gained;
+    return gained;
   };
 
   /* Бросок редкости. kind: 'norm'|'elite'|'boss' */
@@ -29,25 +43,28 @@
 
   /* Дроп с волны. Возвращает результат для UI или null.
      offline=true — шанс ×0.5 (ТЗ §6). Предмет уходит в сумку либо
-     авто-продаётся при переполнении. */
-  P.rollLoot = function (state, kind, tier, offline, rng) {
+     авто-продаётся при переполнении.
+     wave (абсолютный номер) — множит бюджет предмета: лут растёт с волной. */
+  P.rollLoot = function (state, kind, tier, offline, rng, wave) {
     rng = rng || Math.random;
     let chance = LOOT_CHANCE;
     if (kind !== "norm") chance = 1.0;
     if (offline) chance *= 0.5;
     if (rng() >= chance) return null;
 
+    const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
     const slot = P.SLOTS[Math.floor(rng() * P.SLOTS.length)];
     const rarity = P.rollRarity(kind, rng);
-    const item = P.generateItem(slot, tier, rarity, rng);
+    const item = P.generateItem(slot, tier, rarity, rng, waveMult);
     return P.applyLoot(state, item, tier);
   };
 
-  /* Гарантированный дроп оружия на волне 3 (правки v2) — ранний лут-флейвор. */
-  P.rollGuaranteedWeapon = function (state, tier, rng) {
+  /* Гарантированный дроп оружия на 3-й волне круга — ранний лут-флейвор. */
+  P.rollGuaranteedWeapon = function (state, tier, rng, wave) {
     rng = rng || Math.random;
+    const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
     const rarity = P.rollRarity("norm", rng);
-    const item = P.generateItem("weapon", tier, rarity, rng);
+    const item = P.generateItem("weapon", tier, rarity, rng, waveMult);
     return P.applyLoot(state, item, tier);
   };
 
@@ -132,8 +149,10 @@
     return equipped;
   };
 
-  /* Прокачать предмет: где = 'equip' (слот) или 'bag' (индекс сумки). */
+  /* Прокачать предмет: где = 'equip' (слот) или 'bag' (индекс сумки).
+     Доступно только после зачистки Района (Оружейник). */
   P.upgradeItem = function (state, where, key) {
+    if (!state.upgradesUnlocked) return false;
     let item = null;
     if (where === "equip") {
       item = state.equipment[key];

@@ -7,9 +7,9 @@
 
   P.ENEMY = {
     hpBase: 30, hpGrow: 1.15, hpTier: 2.0, hpGlobal: 0.75,
-    dpsBase: 3, dpsGrow: 1.16, dpsTier: 1.8,
-    eliteEvery: 5, eliteHp: 2.5, eliteDps: 1.5,
-    bossEvery: 10, bossHp: 6.0, bossDps: 2.5,
+    dpsBase: 2.4, dpsGrow: 1.14, dpsTier: 1.8,
+    eliteEvery: 5, eliteHp: 2.5, eliteDps: 1.3,
+    bossEvery: 10, bossHp: 6.0, bossDps: 1.8,
     // тех с волны: шанс обычной 30%, элита x5 гарант, босс x20 гарант
     techChance: 0.30, techElite: 5, techBoss: 20,
   };

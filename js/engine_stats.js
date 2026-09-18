@@ -17,7 +17,7 @@
   };
   P.TRAIN_EFFECT = { str: 0.08, vit: 0.10, def: 3, acc: 0.015 };
 
-  /* Потолок уровня параметра = 2 × уровень квартиры. */
+  /* Потолок «Самоделок» и покупка доступны только после Ветерана (зачистка Двора). */
   P.trainCap = function (state) {
     return P.CONFIG.TRAIN_CAP_PER_APT * state.zones.apartment.level;
   };
@@ -28,6 +28,7 @@
 
   /* Купить уровень параметра. Возвращает false если нет припасов/потолка. */
   P.buyTraining = function (state, key) {
+    if (!state.veteranUnlocked) return false;
     const t = state.training;
     if (!(key in t)) return false;
     const cap = P.trainCap(state);

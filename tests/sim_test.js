@@ -37,10 +37,12 @@ function approx(a, b, eps, msg) {
   assert(hero.supMult === 1 && hero.regenCombat === 0, "нет аффиксов на старте");
 }
 
-// ---------- «Самоделки» ----------
+// ---------- «Самоделки» (после Ветерана — зачистка Двора) ----------
 {
   const state = P.defaultState();
   state.supplies = 10000;
+  assert(!P.buyTraining(state, "str"), "без Ветерана тренировки закрыты");
+  state.veteranUnlocked = true;
   assert(P.trainCap(state) === 2, "потолок = 2× уровень квартиры");
   assert(P.buyTraining(state, "str"), "покупка Силы");
   assert(P.buyTraining(state, "str"), "вторая покупка Силы");
@@ -53,7 +55,8 @@ function approx(a, b, eps, msg) {
   assert(P.calcHero(state).armor > 5, "Защита: +3 брони");
   assert(P.buyTraining(state, "acc"), "покупка Меткости");
   assert(P.calcHero(state).crit > 0.05, "Меткость: +1.5 п.п. крита");
-  // апгрейд квартиры поднимает потолок
+  // апгрейд квартиры поднимает потолок (нужен хаб)
+  state.hubUnlocked = true;
   P.buyZoneLevel(state, "apartment");
   assert(P.trainCap(state) === 4, "потолок вырос с квартирой");
   assert(P.buyTraining(state, "str"), "Силу можно качать дальше");
@@ -87,10 +90,12 @@ function approx(a, b, eps, msg) {
   }
 }
 
-// ---------- прокачка предмета ----------
+// ---------- прокачка предмета (после Района — Оружейник) ----------
 {
   const state = P.defaultState();
   state.supplies = 10000;
+  assert(!P.upgradeItem(state, "equip", "weapon"), "без Оружейника улучшать нельзя");
+  state.upgradesUnlocked = true;
   // эпик: чтобы цена чувствительно росла после ресайла (base 2 мала)
   state.equipment.weapon = P.generateItem("weapon", 1, "epic", Math.random);
   const knife = state.equipment.weapon;
@@ -216,10 +221,12 @@ function approx(a, b, eps, msg) {
   assert(full.bag.length === 3, "сумка не растёт за пределы");
 }
 
-// ---------- econ: квартира без дохода ----------
+// ---------- econ: квартира без дохода (апгрейд — после хаба) ----------
 {
   const state = P.defaultState();
   state.supplies = 1000;
+  assert(!P.buyZoneLevel(state, "apartment"), "без хаба квартиру не улучшить");
+  state.hubUnlocked = true;
   const hpBefore = P.calcHero(state).hpMax;
   assert(P.buyZoneLevel(state, "apartment"), "покупка уровня квартиры");
   assert(P.calcHero(state).hpMax === hpBefore + 20, "квартира: +20 HP за уровень");
@@ -414,37 +421,62 @@ function approx(a, b, eps, msg) {
   assert(!state.hubUnlocked, "хаб закрыт до зачистки дома");
 }
 
-// ---------- зачистка Дома открывает хаб (реальный бой) ----------
+// ---------- авто-продажа по качеству + продать-всё-ниже ----------
 {
   const state = P.defaultState();
-  state.autoFarm = true;
-  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 5000 }, affixes: [], lvl: 0 };
-  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 5000, armor: 500 }, affixes: [], lvl: 0 };
-  state.zones.entrance.unlocked = true;
-  state.zones.house.unlocked = true;
-  state.zones.house.wave = 20;      // босс круга
-  state.zones.house.maxWave = 20;
-  const game = P.createGame(state, {});
-  assert(game.setZone("house"), "переход в дом");
-  let guard = 0;
-  while (!state.hubUnlocked && guard++ < 12000) game.update(0.05);
-  assert(state.hubUnlocked, "зачистка Дома открыла хаб");
-  assert(state.zones.house.wave > 20, "после босса дома авто пошло дальше");
-}
-
-// ---------- авто-продажа по качеству ----------
-{
-  const state = P.defaultState();
-  state.autoSell = 2; // продавать обычный и необычный
+  state.autoSell = 2; // порог: Необычный и ниже
+  state.autoSellOn = true;
   const s0 = state.supplies;
   const grey = P.applyLoot(state, P.generateItem("boots", 1, "common", Math.random), 1);
   assert(grey.autoSold && state.bag.length === 0, "серое авто-продалось");
   assert(state.supplies > s0, "за серое упали припасы");
   const green = P.applyLoot(state, P.generateItem("boots", 1, "rare", Math.random), 1);
   assert(green.toBag && state.bag.length === 1, "редкое осталось в сумке");
-  state.autoSell = 0;
-  const keep = P.applyLoot(state, P.generateItem("boots", 1, "common", Math.random), 1);
-  assert(keep.toBag, "с выкл. порогом серое снова в сумку");
+  // одноразовая продажа по порогу (независимо от авто-переключателя)
+  state.autoSellOn = false;
+  P.applyLoot(state, P.generateItem("boots", 1, "common", Math.random), 1);
+  assert(state.bag.length === 2, "с выкл. авто серое копится в сумке");
+  const g = P.sellBelowRarity(state, 0); // всё Обычное и ниже
+  assert(g > 0 && state.bag.length === 1, "«продать всё ниже» сработало разово");
+  assert(state.bag[0].rarity === "rare", "редкое не тронуто");
+}
+
+// ---------- цепочка гейтов: Двор->Ветеран, Дом->Хаб, Район->Оружейник ----------
+{
+  const state = P.defaultState();
+  state.autoFarm = true;
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 9000 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 8000, armor: 800 }, affixes: [], lvl: 0 };
+  for (const zid of ["entrance", "yard", "house", "district"]) state.zones[zid].unlocked = true;
+  const game = P.createGame(state, {});
+  const clearBoss = (zid) => {
+    state.zones[zid].wave = P.ZONES[zid].wavesCap; // босс круга
+    state.zones[zid].maxWave = state.zones[zid].wave;
+    assert(game.setZone(zid), "переход в " + zid);
+    let guard = 0;
+    while (state.zones[zid].wave <= P.ZONES[zid].wavesCap && guard++ < 20000) game.update(0.05);
+    assert(state.zones[zid].wave > P.ZONES[zid].wavesCap, zid + ": босс круга убит");
+  };
+  assert(!state.veteranUnlocked && !state.hubUnlocked && !state.upgradesUnlocked, "все гейты закрыты");
+  clearBoss("yard");
+  assert(state.veteranUnlocked, "зачистка Двора открыла Ветерана");
+  state.supplies = 1000;
+  assert(P.buyTraining(state, "str"), "Ветеран: тренировки работают");
+  clearBoss("house");
+  assert(state.hubUnlocked, "зачистка Дома открыла Хаб");
+  assert(P.buyZoneLevel(state, "apartment"), "Хаб: квартиру можно улучшать");
+  clearBoss("district");
+  assert(state.upgradesUnlocked, "зачистка Района открыла Оружейника");
+  state.supplies = 100000; // мифическое тестовое оружие дорогое в прокачке
+  assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник: предметы улучшаются");
+}
+
+// ---------- миграция: старый autoSell>0 = авто-продажа включена ----------
+{
+  const old = P.migrate({ version: 3, autoSell: 2, zones: { apartment: { unlocked: true, level: 1, wave: 1 } } });
+  assert(old.autoSellOn === true, "старый autoSell>0 -> авто-продажа включена");
+  const off = P.migrate({ version: 3, autoSell: 0, zones: { apartment: { unlocked: true, level: 1, wave: 1 } } });
+  assert(off.autoSellOn === false, "autoSell=0 -> авто-продажа выключена");
 }
 
 // ---------- ресайл v3.1: цифры ÷5 ----------

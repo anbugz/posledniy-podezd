@@ -12,6 +12,7 @@
   };
 
   P.buyZoneLevel = function (state, zoneId) {
+    if (!state.hubUnlocked) return false; // база открывается зачисткой Дома
     const z = state.zones[zoneId];
     if (!z || !z.unlocked) return false;
     const cost = P.zoneCost(zoneId, z.level);

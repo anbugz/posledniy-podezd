@@ -71,6 +71,29 @@
       : "<span class='d-cmp-worse'>▼ " + pct + "% к надетому</span>";
   }
 
+  /* Сравнение постатно: «HP: 10 → 25 (+150%)» по каждому стату пары. */
+  function statVal(k, v) { return k === "crit" ? Math.round(v * 100) + "%" : fmt(v); }
+  function compareLines(item, equipped) {
+    const keys = ["dps", "hp", "armor", "crit"];
+    const lines = [];
+    for (const k of keys) {
+      const val = item.stats[k] || 0;
+      const cur = (equipped && equipped.stats[k]) || 0;
+      if (!val && !cur) continue;
+      let cmp;
+      if (cur > 0) {
+        const pct = Math.round((val / cur - 1) * 100);
+        cmp = pct === 0 ? "±0%" : (pct > 0 ? "+" : "") + pct + "%";
+      } else {
+        cmp = val > 0 ? "новый стат" : "—";
+      }
+      const arrow = val > cur ? "▲" : val < cur ? "▼" : "•";
+      const cls = val > cur ? "d-cmp-better" : val < cur ? "d-cmp-worse" : "";
+      lines.push({ text: arrow + " " + STAT_NAME[k] + ": " + statVal(k, cur) + " → " + statVal(k, val) + " (" + cmp + ")", cls });
+    }
+    return lines;
+  }
+
   P.initPanel = function (game, battleView) {
     const state = game.state;
     const $ = (id) => document.getElementById(id);
@@ -87,9 +110,10 @@
       hubHead: $("hub-head"), zoneCards: $("zone-cards"),
       trainCap: $("trainCap"), trainingGrid: $("training-grid"),
       invModal: $("inv-modal"), bagGrid: $("bag-grid"), bagCount: $("bagCount"),
-      invDetail: $("inv-detail"), equipBest: $("equipBest"), autoSellSel: $("autoSellSel"),
+      invDetail: $("inv-detail"), equipBest: $("equipBest"),
+      autoSellSel: $("autoSellSel"), autoSellOn: $("autoSellOn"), sellBelow: $("sellBelow"),
       charModal: $("char-modal"), charBody: $("char-body"),
-      lootPopup: $("loot-popup"), lootBody: $("loot-body"), lootOk: $("loot-ok"),
+      trainingSection: $("training-section"), veteranNote: $("veteran-note"),
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"), tooltip: $("tooltip"),
     };
@@ -117,7 +141,11 @@
       for (const l of itemStatsLines(item)) html += "<div class='tt-line'>" + l.text + "</div>";
       const af = affixText(item);
       if (af) html += "<div class='tt-line d-affix'>" + af + "</div>";
-      html += "<div class='tt-cmp'>" + cmpHtml(item, equipped) + "</div>";
+      html += "<div class='tt-cmp'>";
+      for (const l of compareLines(item, equipped)) {
+        html += "<div class='" + l.cls + "'>" + l.text + "</div>";
+      }
+      html += "</div>";
       html += "<div class='tt-price'>цена продажи: " + sellPrice(item) + " 🥫</div>";
       return html;
     }
@@ -142,6 +170,7 @@
 
     /* ---------- экраны ---------- */
     function showScreen(which) {
+      if (which === "base" && !state.hubUnlocked) return; // база — после зачистки Дома
       el.screenBattle.classList.toggle("hidden", which !== "battle");
       el.screenBase.classList.toggle("hidden", which !== "base");
       el.tabBattle.classList.toggle("active", which === "battle");
@@ -249,8 +278,33 @@
     el.autoSellSel.value = String(state.autoSell || 0);
     el.autoSellSel.addEventListener("change", () => {
       state.autoSell = parseInt(el.autoSellSel.value, 10) || 0;
+      refreshSellTools();
       refresh();
     });
+    el.autoSellOn.checked = !!state.autoSellOn;
+    el.autoSellOn.addEventListener("change", () => {
+      state.autoSellOn = el.autoSellOn.checked;
+      refresh();
+    });
+    // одноразовая продажа всего не выше порога
+    el.sellBelow.addEventListener("click", () => {
+      const n = (parseInt(el.autoSellSel.value, 10) || 0) - 1;
+      if (n < 0) return;
+      const g = P.sellBelowRarity(state, n);
+      if (g > 0) {
+        battleView.addFloater(240, 120, "+" + g + " припасов", "#e8b45e");
+        forceHeavy = true;
+        refresh();
+        renderInventory();
+      }
+    });
+    function refreshSellTools() {
+      const n = (parseInt(el.autoSellSel.value, 10) || 0) - 1;
+      el.sellBelow.disabled = n < 0;
+      el.autoSellOn.disabled = n < 0;
+      if (n < 0) el.autoSellOn.checked = false;
+    }
+    refreshSellTools();
 
     el.equipBest.addEventListener("click", () => {
       const n = P.equipBest(state);
@@ -274,7 +328,14 @@
       for (const l of itemStatsLines(item)) html += "<div class='d-line'>" + l.text + "</div>";
       const af = affixText(item);
       if (af) html += "<div class='d-line d-affix'>" + af + "</div>";
-      html += "<div class='d-line'>vs надетым: " + cmpHtml(item, equipped) + "</div>";
+      if (equipped) {
+        html += "<div class='d-line' style='margin-top:4px'>надето: <b>" + equipped.name + "</b></div>";
+        for (const l of compareLines(item, equipped)) {
+          html += "<div class='d-line " + l.cls + "'>" + l.text + "</div>";
+        }
+      } else {
+        html += "<div class='d-line d-cmp-better'>слот пуст — надевание в плюс</div>";
+      }
       html += "<div class='d-line'>цена продажи: <b>" + sellPrice(item) + "</b> 🥫</div>";
       el.invDetail.innerHTML = html;
 
@@ -302,21 +363,24 @@
         refresh();
         renderInventory();
       });
-      const bUpg = document.createElement("button");
-      bUpg.className = "b-upg";
-      const cost = P.itemUpgradeCost(item);
-      bUpg.textContent = "Улучшить — " + fmt(cost);
-      bUpg.disabled = state.supplies < cost;
-      bUpg.addEventListener("click", () => {
-        if (P.upgradeItem(state, "bag", selectedBagIdx)) {
-          forceHeavy = true;
-          refresh();
-          renderInventory();
-        }
-      });
       btns.appendChild(bWear);
       btns.appendChild(bSell);
-      btns.appendChild(bUpg);
+      // улучшение предметов — только после зачистки Района (Оружейник)
+      if (state.upgradesUnlocked) {
+        const bUpg = document.createElement("button");
+        bUpg.className = "b-upg";
+        const cost = P.itemUpgradeCost(item);
+        bUpg.textContent = "Улучшить — " + fmt(cost);
+        bUpg.disabled = state.supplies < cost;
+        bUpg.addEventListener("click", () => {
+          if (P.upgradeItem(state, "bag", selectedBagIdx)) {
+            forceHeavy = true;
+            refresh();
+            renderInventory();
+          }
+        });
+        btns.appendChild(bUpg);
+      }
       el.invDetail.appendChild(btns);
     }
 
@@ -388,14 +452,26 @@
 
     /* ---------- база / хаб ---------- */
     function renderBase() {
-      // шапка хаба — только после зачистки Дома
+      // шапка хаба + вкладка доступны только после зачистки Дома
+      el.tabBase.disabled = !state.hubUnlocked;
+      el.tabBase.textContent = state.hubUnlocked ? "🏠 База" : "🏠 База 🔒";
       if (state.hubUnlocked) {
         el.hubHead.innerHTML =
-          "<div class='hub-banner'><h2>🏠 ХАБ</h2>" +
-          "<p>Дом зачищен — база укреплена. Отсюда вы отправляетесь в бой: выбирайте фронт, качайте квартиру и «Самоделки». Всего волн пройдено: <b>" +
-          state.stats.wavesCleared + "</b>, тварей уничтожено: <b>" + state.stats.kills + "</b>.</p></div>";
+          "<div class='hub-banner'><h2>🏠 БАЗА</h2>" +
+          "<p>Штаб обороны. Отсюда вы отправляетесь в бой: выбирайте фронт, улучшайте квартиру. " +
+          "Всего волн пройдено: <b>" + state.stats.wavesCleared + "</b>, тварей уничтожено: <b>" + state.stats.kills + "</b>.</p></div>";
       } else {
         el.hubHead.innerHTML = "";
+      }
+      // «Самоделки» — только после Ветерана (зачистка Двора)
+      el.trainingSection.classList.toggle("hidden", !state.veteranUnlocked);
+      if (!state.veteranUnlocked) {
+        el.veteranNote.innerHTML =
+          "<div class='hub-banner' style='border-color:#5ea8e8'><h2 style='color:#5ea8e8'>🎖 Ветеран появится позже</h2>" +
+          "<p>Обучение «Самоделкам» откроется, когда зачистите <b>Двор</b> (волна " +
+          P.ZONES.yard.wavesCap + "). До этого прокачек нет — только бой, лут и навыки.</p></div>";
+      } else {
+        el.veteranNote.innerHTML = "";
       }
       // карточки зон
       el.zoneCards.innerHTML = "";
@@ -549,41 +625,8 @@
       }
     }
 
-    // лут-попап (редкий+ лут и любые продажи с показом)
-    function showLoot() {
-      if (el.lootPopup.classList.contains("visible") || game.lootQueue.length === 0) return;
-      // не перекрываем открытые модалки — подождём следующего тика
-      if (el.invModal.classList.contains("visible") || el.charModal.classList.contains("visible")) return;
-      const loot = game.lootQueue.shift();
-      const it = loot.item;
-      const notable = it.rarity === "rare" || it.rarity === "epic" ||
-        it.rarity === "legendary" || it.rarity === "mythic";
-      if (!notable && loot.toBag) { showLoot(); return; }
-      let html = "";
-      if (loot.autoSold) {
-        html += "<p class='loot-title'>Авто-продажа: " + it.name + "</p>";
-        html += "<div class='loot-item " + rarityClass(it.rarity) + "'>" + P.slotIcon(it) + " <b>" + it.name + "</b><br>" + itemStatsText(it) + "</div>";
-        html += "<p class='loot-vs'>+" + loot.soldFor + " припасов (по настройке качества)</p>";
-      } else if (loot.toBag) {
-        html += "<p class='loot-title'>Новый предмет — в сумке!</p>";
-        html += "<div class='loot-item " + rarityClass(it.rarity) + "'><b>" + P.slotIcon(it) + " " + it.name + "</b><br>" + itemStatsText(it);
-        const af = affixText(it);
-        if (af) html += "<br><span class='d-affix'>" + af + "</span>";
-        html += "</div>";
-        html += "<p class='loot-vs'>Наведите курсор в инвентаре — покажет сравнение с надетым.</p>";
-      } else {
-        html += "<p class='loot-title'>Сумка полна — предмет продан</p>";
-        html += "<div class='loot-item " + rarityClass(it.rarity) + "'>" + P.slotIcon(it) + " <b>" + it.name + "</b><br>" + itemStatsText(it) + "</div>";
-        html += "<p class='loot-vs'>+" + loot.soldFor + " припасов</p>";
-      }
-      el.lootBody.innerHTML = html;
-      el.lootPopup.classList.add("visible");
-      forceHeavy = true;
-    }
-    el.lootOk.addEventListener("click", () => {
-      el.lootPopup.classList.remove("visible");
-      showLoot();
-    });
+    // лут-попапа НЕТ (по решению игрока): очередь лута просто очищается,
+    // предметы молча падают в сумку или продаются по настройке.
 
     // оффлайн-экран
     function showOffline(report) {
@@ -612,22 +655,24 @@
       if (e.key !== "Escape") return;
       closeInventory();
       closeChar();
-      el.lootPopup.classList.remove("visible");
     });
 
     return {
       refresh,
-      showLoot,
       showOffline,
       showScreen,
       renderBase,
+      /* бой стоит, пока открыт экран Базы (возврат — безопасность) */
+      isBaseOpen() {
+        return !el.screenBase.classList.contains("hidden");
+      },
       flashSaved() {
         el.savedHint.classList.add("visible");
         setTimeout(() => el.savedHint.classList.remove("visible"), 1200);
       },
       tick() {
         refresh();
-        showLoot();
+        game.lootQueue.length = 0; // лут уходит молча, без попапов
       },
     };
   };

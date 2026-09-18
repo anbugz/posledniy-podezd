@@ -36,15 +36,25 @@
 
     function drawRoom(t) {
       const night = game.isNight();
+      const zoneId = state.activeZone || "apartment";
+      // пол и стены — общий каркас, детали — по зоне
       ctx.fillStyle = night ? PAL.wallNight : PAL.wall;
       ctx.fillRect(0, 0, W, FLOOR_Y);
-      ctx.fillStyle = night ? PAL.floor : PAL.floor;
+      ctx.fillStyle = PAL.floor;
       ctx.fillRect(0, FLOOR_Y, W, H - FLOOR_Y);
       ctx.strokeStyle = PAL.floorLine;
       for (let x = 0; x < W; x += 24) {
         ctx.beginPath(); ctx.moveTo(x + 0.5, FLOOR_Y); ctx.lineTo(x + 0.5, H); ctx.stroke();
       }
+      if (zoneId === "entrance") drawEntrance(night, t);
+      else if (zoneId === "yard") drawYard(night, t);
+      else if (zoneId === "house") drawHouse(night, t);
+      else if (zoneId === "district") drawDistrict(night, t);
+      else drawApartment(night, t);
+    }
 
+    /* Квартира: комната с окном, дверью и диваном-баррикадой. */
+    function drawApartment(night, t) {
       // окно с небом (день/ночь + мигание ивента)
       const wx = 320, wy = 30, ww = 120, wh = 90;
       ctx.fillStyle = PAL.windowFrame;
@@ -87,6 +97,166 @@
       ctx.fillRect(426, FLOOR_Y - 46, 10, 46);
       ctx.fillStyle = PAL.sofaShade;
       ctx.fillRect(430, FLOOR_Y - 20, 46, 6);
+    }
+
+    /* Подъезд: лестничная клетка с лифтом и лампой. */
+    function drawEntrance(night, t) {
+      // бетонные панели
+      ctx.strokeStyle = "#262233";
+      for (let x = 60; x < W; x += 90) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, FLOOR_Y); ctx.stroke();
+      }
+      // лифт (справа)
+      ctx.fillStyle = "#3a3f52";
+      ctx.fillRect(400, FLOOR_Y - 130, 62, 130);
+      ctx.fillStyle = "#2a2e3e";
+      ctx.fillRect(406, FLOOR_Y - 124, 50, 124);
+      ctx.strokeStyle = "#4a5068";
+      ctx.beginPath(); ctx.moveTo(431, FLOOR_Y - 124); ctx.lineTo(431, FLOOR_Y); ctx.stroke();
+      // лампа над лифтом
+      const flick = Math.floor(t / 40) % 7 !== 0;
+      if (flick) {
+        ctx.fillStyle = "#ffe87d";
+        ctx.fillRect(425, 40, 12, 6);
+        ctx.fillStyle = "rgba(255,232,125,0.12)";
+        ctx.fillRect(400, 46, 62, FLOOR_Y - 46);
+      }
+      // марш лестницы (слева)
+      ctx.fillStyle = "#2e3040";
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(0, FLOOR_Y - 22 * (i + 1), 90 - i * 14, 22);
+      }
+      // поручень
+      ctx.strokeStyle = "#4a5068";
+      ctx.beginPath(); ctx.moveTo(0, FLOOR_Y - 118); ctx.lineTo(84, FLOOR_Y - 30); ctx.stroke();
+      // окошко в клетке
+      ctx.fillStyle = night ? PAL.windowNight : PAL.windowDay;
+      ctx.fillRect(180, 36, 70, 56);
+      ctx.strokeStyle = PAL.windowFrame;
+      ctx.strokeRect(180, 36, 70, 56);
+      ctx.beginPath(); ctx.moveTo(215, 36); ctx.lineTo(215, 92); ctx.stroke();
+    }
+
+    /* Двор: забор, будка, дерево, небо. */
+    function drawYard(night, t) {
+      // небо на всю стену
+      ctx.fillStyle = night ? "#0a1024" : "#87b5d9";
+      ctx.fillRect(0, 0, W, FLOOR_Y);
+      if (night) {
+        ctx.fillStyle = "#e8e4f0";
+        for (const [sx, sy] of [[40, 30], [120, 60], [260, 24], [330, 70], [450, 40]]) {
+          ctx.fillRect(sx, sy, 2, 2);
+        }
+      } else {
+        // солнце
+        ctx.fillStyle = "#ffe87d";
+        ctx.fillRect(60, 26, 18, 18);
+      }
+      // многоквартирный силуэт
+      ctx.fillStyle = night ? "#141a2c" : "#5a6a86";
+      ctx.fillRect(280, 60, 180, FLOOR_Y - 60);
+      ctx.fillStyle = night ? "#2a3350" : "#c8d4e8";
+      for (let wy = 74; wy < FLOOR_Y - 20; wy += 26) {
+        for (let wx = 292; wx < 440; wx += 30) ctx.fillRect(wx, wy, 14, 12);
+      }
+      // забор (профлист)
+      ctx.fillStyle = night ? "#232a3a" : "#7a8699";
+      ctx.fillRect(0, FLOOR_Y - 74, W, 74);
+      ctx.strokeStyle = night ? "#313a4e" : "#96a2b5";
+      for (let x = 8; x < W; x += 22) {
+        ctx.beginPath(); ctx.moveTo(x, FLOOR_Y - 74); ctx.lineTo(x, FLOOR_Y); ctx.stroke();
+      }
+      // дерево за забором
+      ctx.fillStyle = "#3a2c22";
+      ctx.fillRect(150, FLOOR_Y - 120, 10, 50);
+      ctx.fillStyle = night ? "#1d3020" : "#3f6d4e";
+      ctx.beginPath(); ctx.arc(155, FLOOR_Y - 132, 30, 0, Math.PI * 2); ctx.fill();
+      // будка
+      ctx.fillStyle = night ? "#2a2434" : "#6a4a3a";
+      ctx.fillRect(60, FLOOR_Y - 46, 52, 46);
+      ctx.fillStyle = "#1c1626";
+      ctx.fillRect(74, FLOOR_Y - 34, 20, 34);
+    }
+
+    /* Дом: подвал — кирпич, трубы, полки, котёл. */
+    function drawHouse(night, t) {
+      // кирпичная кладка
+      ctx.strokeStyle = "#2c2333";
+      for (let y = 0; y < FLOOR_Y; y += 14) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        for (let x = (y / 14) % 2 ? 0 : 18; x < W; x += 36) {
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 14); ctx.stroke();
+        }
+      }
+      // трубы под потолком
+      ctx.fillStyle = "#4a5068";
+      ctx.fillRect(0, 18, W, 8);
+      ctx.fillRect(120, 18, 8, 60);
+      ctx.fillRect(340, 18, 8, 44);
+      // котёл (справа)
+      ctx.fillStyle = "#3f4658";
+      ctx.fillRect(400, FLOOR_Y - 80, 56, 80);
+      ctx.fillStyle = "#2c3140";
+      ctx.fillRect(408, FLOOR_Y - 72, 40, 64);
+      // горелка мерцает
+      ctx.fillStyle = Math.floor(t / 12) % 2 ? "#e87d4a" : "#a84a2a";
+      ctx.fillRect(416, FLOOR_Y - 20, 24, 8);
+      // полки с консервами (слева)
+      ctx.fillStyle = "#4a3a2c";
+      ctx.fillRect(20, FLOOR_Y - 130, 90, 6);
+      ctx.fillRect(20, FLOOR_Y - 92, 90, 6);
+      ctx.fillStyle = "#7a8a5a";
+      ctx.fillRect(30, FLOOR_Y - 142, 12, 12);
+      ctx.fillRect(50, FLOOR_Y - 142, 12, 12);
+      ctx.fillStyle = "#8a5a4a";
+      ctx.fillRect(70, FLOOR_Y - 104, 12, 12);
+      // голая лампочка
+      ctx.fillStyle = "#5a5148";
+      ctx.beginPath(); ctx.moveTo(240, 0); ctx.lineTo(240, 34); ctx.stroke();
+      ctx.fillStyle = night ? "#ffe87d" : "#c8b46a";
+      ctx.fillRect(234, 34, 12, 14);
+    }
+
+    /* Район: улица — разрушенные дома, фонарь, баррикада, луна. */
+    function drawDistrict(night, t) {
+      ctx.fillStyle = night ? "#0a1024" : "#6a7a99";
+      ctx.fillRect(0, 0, W, FLOOR_Y);
+      if (night) {
+        ctx.fillStyle = "#e8e4f0";
+        ctx.fillRect(70, 30, 3, 3); ctx.fillRect(200, 60, 2, 2); ctx.fillRect(390, 24, 2, 2);
+        // луна
+        ctx.fillStyle = "#d8dce8";
+        ctx.fillRect(430, 30, 26, 26);
+        ctx.fillStyle = "#0a1024";
+        ctx.fillRect(424, 26, 14, 26);
+      }
+      // силуэты разрушенных зданий
+      ctx.fillStyle = night ? "#121828" : "#4a5670";
+      ctx.fillRect(0, 90, 110, FLOOR_Y - 90);
+      ctx.fillRect(70, 60, 60, 40);        // второй этаж угловой
+      ctx.fillRect(360, 76, 120, FLOOR_Y - 76);
+      // проломы (как окна без стекол)
+      ctx.fillStyle = night ? "#0a1024" : "#2a3245";
+      for (const [bx, by] of [[16, 110], [48, 140], [86, 110], [380, 96], [420, 130], [452, 100]]) {
+        ctx.fillRect(bx, by, 16, 18);
+      }
+      // фонарь (мигает)
+      ctx.fillStyle = "#3a4052";
+      ctx.fillRect(230, FLOOR_Y - 150, 6, 150);
+      ctx.fillRect(230, FLOOR_Y - 150, 30, 5);
+      const on = Math.floor(t / 50) % 5 !== 0;
+      ctx.fillStyle = on ? "#ffe87d" : "#5a5148";
+      ctx.fillRect(252, FLOOR_Y - 145, 8, 8);
+      if (on) {
+        ctx.fillStyle = "rgba(255,232,125,0.10)";
+        ctx.fillRect(222, FLOOR_Y - 137, 70, 137);
+      }
+      // баррикада из шин и досок
+      ctx.fillStyle = "#2c2636";
+      ctx.beginPath(); ctx.arc(90, FLOOR_Y - 12, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(118, FLOOR_Y - 10, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#4a3a2c";
+      ctx.fillRect(70, FLOOR_Y - 34, 90, 8);
     }
 
     function drawHero(t) {
@@ -205,10 +375,14 @@
       const zdef = P.ZONES[state.activeZone || "apartment"];
       const c = P.waveCycle(state.zones[zdef.id].wave, zdef.wavesCap);
       const waveLabel = c.cycle > 0 ? c.nEff + " (круг " + (c.cycle + 1) + ")" : String(c.nEff);
-      ctx.fillStyle = PAL.text;
+      const label = e.name + " (волна " + waveLabel + ")";
       ctx.font = "8px monospace";
       ctx.textAlign = "center";
-      ctx.fillText(e.name + " (волна " + waveLabel + ")", x, y - 102);
+      const lw = ctx.measureText(label).width;
+      ctx.fillStyle = "rgba(10,8,18,0.75)";
+      ctx.fillRect(x - lw / 2 - 4, y - 110, lw + 8, 12);
+      ctx.fillStyle = PAL.text;
+      ctx.fillText(label, x, y - 101);
     }
 
     function drawFloatersAndFlashes() {
@@ -235,14 +409,14 @@
     }
 
     function drawStatus(t) {
-      // баннер (день/ночь/ивент/unlock)
+      // баннер (день/ночь/ивент/unlock) — правый верхний угол, чтобы не перекрывать статус боя
       if (game.banner && state.now < game.banner.until) {
         ctx.fillStyle = "rgba(0,0,0,0.65)";
-        ctx.fillRect(90, 8, 300, 18);
+        ctx.fillRect(W - 308, 8, 300, 18);
         ctx.fillStyle = "#ffe87d";
         ctx.font = "9px monospace";
         ctx.textAlign = "center";
-        ctx.fillText(game.banner.text, 240, 21);
+        ctx.fillText(game.banner.text, W - 158, 21);
       }
       // статус боя
       ctx.fillStyle = PAL.text;

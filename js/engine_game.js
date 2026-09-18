@@ -38,8 +38,8 @@
         // лут: гарантированное оружие на 3-й волне круга, иначе обычный бросок
         let loot = null;
         const nEff = P.waveCycle(ev.wave, zdef.wavesCap).nEff;
-        if (nEff === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier);
-        else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false);
+        if (nEff === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, ev.wave);
+        else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false, Math.random, ev.wave);
         if (loot) game.lootQueue.push(loot);
         // авто-фарм: победили — если следующая волна тоже проходима, идём выше,
         // иначе остаёмся фармить текущую (осцилляция у «стены» сложности)
@@ -69,11 +69,25 @@
             until: state.now + 8,
           };
         }
-        // зачистка Дома — база становится Хабом
+        // зачистка зон открывает прокачки (по цепочке фронтов)
+        if (zoneId === "yard" && !state.veteranUnlocked) {
+          state.veteranUnlocked = true;
+          game.banner = {
+            text: "🎖 ДВОР ЗАЧИЩЕН! На базе появился ВЕТЕРАН — учит «Самоделкам».",
+            until: state.now + 10,
+          };
+        }
         if (zoneId === "house" && !state.hubUnlocked) {
           state.hubUnlocked = true;
           game.banner = {
-            text: "🏠 ДОМ ЗАЧИЩЕН! База стала ХАБОМ — смотрите экран «База».",
+            text: "🏠 ДОМ ЗАЧИЩЕН! Открыта БАЗА: улучшение квартиры и обзор фронтов.",
+            until: state.now + 10,
+          };
+        }
+        if (zoneId === "district" && !state.upgradesUnlocked) {
+          state.upgradesUnlocked = true;
+          game.banner = {
+            text: "🔧 РАЙОН ЗАЧИЩЕН! Оружейник открыл УЛУЧШЕНИЕ ПРЕДМЕТОВ.",
             until: state.now + 10,
           };
         }

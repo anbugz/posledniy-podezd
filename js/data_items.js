@@ -77,13 +77,15 @@
   };
 
   /* Генерация предмета.
-     budget = slotBase * tierMult^tier * rarityMult
+     budget = slotBase * tierMult^tier * rarityMult * waveMult
+     (waveMult = LOOT_WAVE_GROW^(волна-1) — лут растёт с волной, v3.2)
      главный стат слота + 0..2 вторичных (шанс по редкости), вариация ±15%.
      Аффиксы: AFFIX_COUNT[rarity] штук, без повторов. */
-  P.generateItem = function (slot, tier, rarity, rng) {
+  P.generateItem = function (slot, tier, rarity, rng, waveMult) {
     rng = rng || Math.random;
     const mult = P.RARITY_MULT[rarity] || 1;
-    const budget = SLOT_BASE[slot] * Math.pow(TIER_MULT, tier - 1) * mult;
+    const wm = waveMult || 1;
+    const budget = SLOT_BASE[slot] * Math.pow(TIER_MULT, tier - 1) * mult * wm;
     const vary = () => 0.85 + rng() * 0.3;
 
     const stats = {};
