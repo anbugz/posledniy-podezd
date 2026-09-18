@@ -201,8 +201,9 @@
       ctx.fillStyle = PAL.enemyHp;
       ctx.fillRect(x - 23, y - 95, Math.round(46 * pct), 3);
 
-      // имя + волна (эффективная, с учётом кругов)
-      const c = P.waveCycle(state.zones.apartment.wave, P.ZONES.apartment.wavesCap);
+      // имя + волна (эффективная, с учётом кругов) — активная зона
+      const zdef = P.ZONES[state.activeZone || "apartment"];
+      const c = P.waveCycle(state.zones[zdef.id].wave, zdef.wavesCap);
       const waveLabel = c.cycle > 0 ? c.nEff + " (круг " + (c.cycle + 1) + ")" : String(c.nEff);
       ctx.fillStyle = PAL.text;
       ctx.font = "8px monospace";
@@ -250,7 +251,6 @@
       const phaseText =
         game.combat.phase === "fight" ? "БОЙ" :
         game.combat.phase === "knockout" ? "ГЕРОЙ ОТКЛЮЧЁН" :
-        game.combat.phase === "done" ? "КВАРТИРА ЗАЧИЩЕНА" :
         "Следующая волна через " + Math.ceil(game.combat.timer) + "с";
       ctx.fillText(phaseText, 10, 16);
       if (game.isEvent()) {

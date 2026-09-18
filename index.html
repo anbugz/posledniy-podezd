@@ -4,87 +4,86 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Последний подъезд — idle auto-battle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="wrap">
-    <header class="header">
-      <h1>🛸 Последний подъезд</h1>
-      <p class="subtitle">Он проснулся от сирен. Мусор выносить всё равно надо.</p>
+    <header class="topbar">
+      <div class="brand">🛸 Последний подъезд</div>
+      <nav class="screen-tabs">
+        <button id="tab-battle" class="stab active">⚔ Бой</button>
+        <button id="tab-base" class="stab">🏠 База</button>
+      </nav>
+      <button id="openChar" class="char-btn" title="Параметры персонажа">👤</button>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active">Квартира</button>
-      <button class="tab locked" disabled title="Зачистите квартиру (волна 20)">Подъезд 🔒</button>
-      <button class="tab locked" disabled>Дом 🔒</button>
-    </nav>
+    <!-- ЭКРАН БОЯ -->
+    <section id="screen-battle">
+      <div class="res-bar">
+        <div class="res-chip main">
+          <span class="res-ico">🥫</span>
+          <span class="res-label">Припасы</span>
+          <b class="res-value" id="supplies">0</b>
+          <span class="res-sub" id="income">за волну: 0</span>
+        </div>
+        <div class="res-chip">
+          <span class="res-ico">🔧</span>
+          <span class="res-label">Технологии</span>
+          <b class="res-value" id="tech">0</b>
+        </div>
+        <div class="res-chip">
+          <span class="res-ico">⚔️</span>
+          <span class="res-label">DPS</span>
+          <b class="res-value" id="dps">0</b>
+          <span class="res-sub" id="crit">5% крит</span>
+        </div>
+        <div class="res-chip">
+          <span class="res-ico">❤️</span>
+          <span class="res-label">HP</span>
+          <b class="res-value" id="hp">0</b>
+          <span class="res-sub" id="armor">0 брони</span>
+        </div>
+      </div>
 
-    <div class="layout">
-      <div class="col-main">
-        <section class="stats">
-          <div class="stat main-stat">
-            <span class="label">Припасы</span>
-            <span class="value" id="supplies">0</span>
-            <span class="sub" id="income">с волн</span>
-          </div>
-          <div class="stat">
-            <span class="label">Технологии</span>
-            <span class="value" id="tech">0</span>
-            <span class="sub">пригодятся позже</span>
-          </div>
-          <div class="stat">
-            <span class="label">DPS</span>
-            <span class="value" id="dps">0</span>
-            <span class="sub" id="crit">5% крит</span>
-          </div>
-          <div class="stat">
-            <span class="label">HP</span>
-            <span class="value" id="hp">0</span>
-            <span class="sub" id="armor">0 брони</span>
-          </div>
-        </section>
-
+      <div class="battle-row">
+        <div class="equip-col" id="equip-left"></div>
         <div class="stage">
           <canvas id="battle" width="480" height="270"></canvas>
           <div id="saved-hint" class="saved-hint">Сохранено</div>
         </div>
+        <div class="equip-col" id="equip-right"></div>
+      </div>
 
-        <section class="control">
-          <div class="zone-box">
-            <div class="wave-nav">
-              <button id="wavePrev" class="wave-btn" title="Предыдущая волна">◀</button>
-              <div class="wave-label">
-                <span>Волна: <b id="wave">1 / 20</b> <span class="wave-max">(макс: <b id="maxWave">1</b>)</span></span>
-                <span class="zone-info">Шанс победы: <b id="winChance">—</b></span>
-              </div>
-              <button id="waveNext" class="wave-btn" title="Следующая волна">▶</button>
-              <button id="autoFarm" class="auto-btn" title="Авто: сам отступает при поражении и идёт выше, пока побеждает">Авто: выкл</button>
-            </div>
-            <button id="buyZone" class="buy">
-              🏠 Улучшить квартиру (ур. <b id="zoneLevel">1</b>) — <b id="zoneCost">25</b> припасов
-            </button>
-            <p class="zone-hint">Квартира: +20 HP за уровень и выше потолок «Самоделок» (2× уровень). Дохода нет — припасы только с волн и лута.</p>
+      <div class="wave-bar">
+        <div class="zone-chips" id="zone-chips"></div>
+        <div class="wave-nav">
+          <button id="wavePrev" class="wave-btn" title="Предыдущая волна">◀</button>
+          <div class="wave-label">
+            <span class="wave-main">Волна <b id="wave">1 / 20</b> <span class="wave-max">макс: <b id="maxWave">1</b></span></span>
+            <span class="wave-chance">Шанс победы: <b id="winChance">—</b></span>
           </div>
-          <div class="skills" id="skills"></div>
-        </section>
+          <button id="waveNext" class="wave-btn" title="Следующая волна">▶</button>
+          <button id="autoFarm" class="auto-btn" title="Авто: победы идут выше, поражения откатывают волну. Без авто — фарм текущей волны.">Авто: выкл</button>
+        </div>
+        <div class="skills" id="skills"></div>
       </div>
 
-      <div class="col-side">
-        <section class="training">
-          <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
-          <div class="training-grid" id="training-grid"></div>
-        </section>
+      <div class="action-bar">
+        <button id="openInv" class="big-btn">🎒 Инвентарь <span class="badge" id="bagCountBadge">0</span></button>
       </div>
-    </div>
+    </section>
 
-    <section class="inventory">
-      <h2>🎒 Сумка <span class="section-sub" id="bagCount"></span></h2>
-      <div class="equip-row" id="equip-row"></div>
-      <div class="inventory-actions">
-        <button id="equipBest" class="inv-btn">✨ Надеть лучшее</button>
-        <button id="sellCommon" class="inv-btn">💰 Продать всё серое</button>
-      </div>
-      <div class="bag-grid" id="bag-grid"></div>
+    <!-- ЭКРАН БАЗЫ / ХАБА -->
+    <section id="screen-base" class="hidden">
+      <div id="hub-head"></div>
+      <div class="zone-cards" id="zone-cards"></div>
+      <section class="training">
+        <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
+        <div class="training-grid" id="training-grid"></div>
+      </section>
     </section>
 
     <footer class="footer">
@@ -92,6 +91,45 @@
       <span class="hint">Автосейв каждые 15 с · оффлайн-прогресс до 12 ч</span>
     </footer>
   </main>
+
+  <!-- Модал: инвентарь -->
+  <div class="overlay" id="inv-modal">
+    <div class="modal wide">
+      <div class="modal-head">
+        <span class="modal-title">🎒 Сумка <span class="section-sub" id="bagCount"></span></span>
+        <div class="modal-tools">
+          <label class="autosell-label">Авто-продажа:
+            <select id="autoSellSel">
+              <option value="0">выкл</option>
+              <option value="1">Обычный и ниже</option>
+              <option value="2">Необычный и ниже</option>
+              <option value="3">Редкий и ниже</option>
+              <option value="4">Эпический и ниже</option>
+            </select>
+          </label>
+          <button id="equipBest" class="inv-btn">✨ Надеть лучшее</button>
+          <button id="inv-close" class="modal-x" title="Закрыть">✕</button>
+        </div>
+      </div>
+      <div class="inv-body">
+        <div class="bag-grid" id="bag-grid"></div>
+        <div class="inv-detail" id="inv-detail">
+          <p class="inv-hint">Наведите курсор на предмет — увидите статы и сравнение с надетым. Клик — выбрать.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модал: персонаж -->
+  <div class="overlay" id="char-modal">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title">👤 Персонаж</span>
+        <button id="char-close" class="modal-x" title="Закрыть">✕</button>
+      </div>
+      <div id="char-body"></div>
+    </div>
+  </div>
 
   <!-- Попап нового предмета -->
   <div class="overlay" id="loot-popup">
@@ -108,6 +146,9 @@
       <button id="offline-ok" class="modal-btn">Вернуться к обороне</button>
     </div>
   </div>
+
+  <!-- Плавающий тултип предметов -->
+  <div id="tooltip" class="tooltip hidden"></div>
 
   <script src="js/ns.js"></script>
   <script src="js/data_zones.js"></script>

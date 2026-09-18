@@ -5,8 +5,15 @@
 (function (P) {
   "use strict";
 
-  const LOOT_CHANCE = 0.45;    // шанс предмета с обычной волны (калибровка симулятора)
+  const LOOT_CHANCE = 0.09;    // шанс предмета с обычной волны (ресайл v3.1: вещей ~в 5 раз меньше)
   const SELL_RATIO = 0.5;      // доля бюджета припасами при продаже
+
+  /* Порядок редкостей для авто-продажи: всё, что не выше порога, продаётся сразу. */
+  P.RARITY_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  P.autoSellThreshold = function (state) {
+    const n = state.autoSell || 0;
+    return n > 0 ? P.RARITY_ORDER[n - 1] : null;
+  };
 
   /* Бросок редкости. kind: 'norm'|'elite'|'boss' */
   P.rollRarity = function (kind, rng) {
@@ -44,14 +51,20 @@
     return P.applyLoot(state, item, tier);
   };
 
-  /* Положить предмет в сумку; при переполнении — авто-продажа. */
+  /* Положить предмет в сумку; при переполнении — авто-продажа.
+     state.autoSell > 0 — продавать всё не выше порога редкости сразу. */
   P.applyLoot = function (state, item, tier) {
     state.stats.itemsFound++;
+    const sellValue = Math.max(1, Math.floor(P.itemScore(item) * SELL_RATIO / 4));
+    const threshold = P.autoSellThreshold(state);
+    if (threshold && P.RARITY_ORDER.indexOf(item.rarity) <= P.RARITY_ORDER.indexOf(threshold)) {
+      state.supplies += sellValue;
+      return { toBag: false, item, soldFor: sellValue, autoSold: true };
+    }
     if (state.bag.length < P.bagSize(state)) {
       state.bag.push(item);
       return { toBag: true, item };
     }
-    const sellValue = Math.max(1, Math.floor(P.itemScore(item) * SELL_RATIO / 4));
     state.supplies += sellValue;
     return { toBag: false, item, soldFor: sellValue };
   };
@@ -146,10 +159,11 @@
     return amount;
   };
 
-  /* Припасы с волны: floor(10 * 1.28^n) — калибровка balance_sim.py
-     (правки v2; пассивного дохода нет, волны — основной источник).
+  /* Припасы с волны: floor(3 * 1.28^n) — ресайл v3.1 (цифры ÷5, рост тот же;
+     база 3 вместо 2 — компенсация округлений, калибровка balance_sim.py).
+     Пассивного дохода нет, волны — основной источник.
      Абсолютный номер волны: повторные круги дают больше. */
   P.waveSupplies = function (n) {
-    return Math.floor(10 * Math.pow(1.28, n));
+    return Math.floor(3 * Math.pow(1.28, n));
   };
 })(typeof PODEZD !== "undefined" ? PODEZD : (global.PODEZD = {}));

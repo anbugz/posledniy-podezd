@@ -91,6 +91,8 @@ function approx(a, b, eps, msg) {
 {
   const state = P.defaultState();
   state.supplies = 10000;
+  // эпик: чтобы цена чувствительно росла после ресайла (base 2 мала)
+  state.equipment.weapon = P.generateItem("weapon", 1, "epic", Math.random);
   const knife = state.equipment.weapon;
   const dps0 = knife.stats.dps;
   const cost0 = P.itemUpgradeCost(knife);
@@ -142,6 +144,7 @@ function approx(a, b, eps, msg) {
 // ---------- combat: бой заканчивается победой, после капа — круги ----------
 {
   const state = P.defaultState();
+  state.autoFarm = true; // прогресс по волнам — только в авто-режиме
   const events = [];
   const combat = P.createCombat(state, "apartment", (ev) => events.push(ev.type));
   for (let t = 0; t < 2400; t++) {
@@ -157,6 +160,7 @@ function approx(a, b, eps, msg) {
 // ---------- combat: зачистка круга -> zoneClear, бой продолжается ----------
 {
   const state = P.defaultState();
+  state.autoFarm = true;
   // сильный билд: пройдём волну 20 (и выживем под боссом)
   state.equipment.weapon = { slot: "weapon", rarity: "legendary", tier: 1, name: "Тест", stats: { dps: 3000 }, affixes: [], lvl: 0 };
   state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 5000, armor: 500 }, affixes: [], lvl: 0 };
@@ -297,8 +301,9 @@ function approx(a, b, eps, msg) {
 
 // ---------- game.update интеграционно: дохода нет, припасы с волн ----------
 {
-  let wins = 0;
   const state = P.defaultState();
+  state.autoFarm = true;
+  let wins = 0;
   const game = P.createGame(state, {
     onWaveWin() { wins++; },
   });
@@ -309,17 +314,31 @@ function approx(a, b, eps, msg) {
   assert(state.dayNight.phase === "day" || state.dayNight.phase === "night", "день/ночь работает");
 }
 
+// ---------- combat: БЕЗ авто прогресса нет — герой фармит волну ----------
+{
+  const state = P.defaultState();
+  state.autoFarm = false;
+  const game = P.createGame(state, {});
+  for (let t = 0; t < 3000; t++) game.update(0.05);
+  assert(state.zones.apartment.wave === 1, "без авто волна не растёт (фарм)");
+  assert(state.supplies > 0, "фарм волны капает припасы");
+  assert(state.stats.wavesCleared > 0, "победы в фарме считаются");
+}
+
 // ---------- переключение волн: maxWave, setWave, границы ----------
 {
   const state = P.defaultState();
+  state.autoFarm = true; // иначе победа не поднимает волну
   const game = P.createGame(state, {});
   const zone = state.zones.apartment;
   assert(zone.maxWave === 1, "maxWave стартует с 1");
   assert(!game.setWave(5), "setWave выше maxWave отклонён");
   assert(zone.wave === 1, "волна не изменилась");
-  // выигрываем волну 1 -> wave и maxWave становятся 2
-  for (let i = 0; i < 1200 && zone.wave === 1; i++) game.update(0.05);
-  assert(zone.wave === 2 && zone.maxWave === 2, "победа: wave и maxWave выросли");
+  // ждём первой победы: wave и maxWave вырастут (дальше авто осциллирует у стены)
+  const wins0 = state.stats.wavesCleared;
+  for (let i = 0; i < 2400 && state.stats.wavesCleared === wins0; i++) game.update(0.05);
+  assert(state.stats.wavesCleared > wins0, "первая победа");
+  assert(zone.wave >= 2 && zone.maxWave >= 2, "победа: wave и maxWave выросли");
   assert(game.setWave(1), "возврат на предыдущую волну");
   assert(zone.wave === 1, "волна переключена на 1");
   assert(!game.setWave(0), "ниже 1 нельзя");
@@ -372,6 +391,73 @@ function approx(a, b, eps, msg) {
   const s = P.migrate(old);
   assert(s.zones.apartment.maxWave === 7, "maxWave мигрирует не ниже wave");
   assert(s.autoFarm === false, "autoFarm выключен по умолчанию");
+}
+
+// ---------- мультизоны: переключение, цепочка открытий, хаб ----------
+{
+  const state = P.defaultState();
+  const game = P.createGame(state, {});
+  // старт: только квартира
+  assert(!game.setZone("entrance"), "подъезд закрыт на старте");
+  // открываем подъезд и дом (как делает zoneClear при зачистке круга)
+  state.zones.entrance.unlocked = true;
+  state.zones.house.unlocked = true;
+  assert(game.setZone("entrance"), "переключение в подъезд");
+  assert(state.activeZone === "entrance" && game.combat.zoneId === "entrance", "активная зона сменилась");
+  // у зон свои волны
+  state.zones.entrance.wave = 5;
+  state.zones.entrance.maxWave = 5;
+  game.setWave(3);
+  assert(state.zones.entrance.wave === 3, "setWave работает в активной зоне");
+  assert(state.zones.apartment.wave === 1, "волны квартиры не тронуты");
+  assert(game.setZone("apartment"), "возврат в квартиру");
+  assert(!state.hubUnlocked, "хаб закрыт до зачистки дома");
+}
+
+// ---------- зачистка Дома открывает хаб (реальный бой) ----------
+{
+  const state = P.defaultState();
+  state.autoFarm = true;
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 5000 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 5000, armor: 500 }, affixes: [], lvl: 0 };
+  state.zones.entrance.unlocked = true;
+  state.zones.house.unlocked = true;
+  state.zones.house.wave = 20;      // босс круга
+  state.zones.house.maxWave = 20;
+  const game = P.createGame(state, {});
+  assert(game.setZone("house"), "переход в дом");
+  let guard = 0;
+  while (!state.hubUnlocked && guard++ < 12000) game.update(0.05);
+  assert(state.hubUnlocked, "зачистка Дома открыла хаб");
+  assert(state.zones.house.wave > 20, "после босса дома авто пошло дальше");
+}
+
+// ---------- авто-продажа по качеству ----------
+{
+  const state = P.defaultState();
+  state.autoSell = 2; // продавать обычный и необычный
+  const s0 = state.supplies;
+  const grey = P.applyLoot(state, P.generateItem("boots", 1, "common", Math.random), 1);
+  assert(grey.autoSold && state.bag.length === 0, "серое авто-продалось");
+  assert(state.supplies > s0, "за серое упали припасы");
+  const green = P.applyLoot(state, P.generateItem("boots", 1, "rare", Math.random), 1);
+  assert(green.toBag && state.bag.length === 1, "редкое осталось в сумке");
+  state.autoSell = 0;
+  const keep = P.applyLoot(state, P.generateItem("boots", 1, "common", Math.random), 1);
+  assert(keep.toBag, "с выкл. порогом серое снова в сумку");
+}
+
+// ---------- ресайл v3.1: цифры ÷5 ----------
+{
+  assert(P.waveSupplies(1) === Math.floor(3 * 1.28), "припасы с волны 1 — единицы");
+  assert(P.waveSupplies(10) < 40, "на волне 10 припасы компактные");
+  assert(P.zoneCost("apartment", 1) === Math.floor(5 * 1.6), "квартира: первый апгрейд ~8");
+  assert(P.trainCost(0) === 3, "Самоделки: стартовая цена 3");
+  // лут стал реже: за 100 бросков с обычной волны предметов заметно меньше половины
+  let drops = 0;
+  const st = P.defaultState();
+  for (let i = 0; i < 200; i++) if (P.rollLoot(st, "norm", 1, false, Math.random)) drops++;
+  assert(drops < 60, "шанс дропа с обычной волны сильно ниже (ресайл)");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

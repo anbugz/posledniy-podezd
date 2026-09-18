@@ -15,6 +15,21 @@
     accessory: { name: "Аксессуар",  main: "mixed" },
   };
 
+  /* Иконки слотов (UI v3.1) — оружие зависит от силы: нож / бита / ствол. */
+  P.slotIcon = function (item) {
+    if (!item) return "▫️";
+    switch (item.slot) {
+      case "weapon":
+        return item.stats.dps >= 15 ? "🔫" : item.stats.dps >= 9 ? "🏏" : "🔪";
+      case "helmet": return "🪖";
+      case "armor": return "🧥";
+      case "gloves": return "🧤";
+      case "boots": return "🥾";
+      case "accessory": return "⌚";
+      default: return "▫️";
+    }
+  };
+
   // редкость: множитель бюджета и шанс дропа с обычной волны
   P.RARITIES = [
     { id: "common",    name: "Обычный",    mult: 1.0,  chance: 0.25 },

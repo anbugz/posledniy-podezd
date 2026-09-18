@@ -40,18 +40,18 @@ HP_PER_APT = 20          # за уровень квартиры
 REGEN_PCT = 0.05         # /сек вне боя
 KNOCKOUT_SEC = 3         # dev; в релизе 60
 
-# «Самоделки»: эффект за уровень и цена 15*1.35^L, потолок 2*уровень квартиры
+# «Самоделки»: эффект за уровень и цена 3*1.35^L, потолок 2*уровень квартиры
 TRAIN = {"str": 0.08, "vit": 0.10, "def": 3.0, "acc": 0.015}
-TRAIN_COST_BASE, TRAIN_COST_GROW = 15.0, 1.35
+TRAIN_COST_BASE, TRAIN_COST_GROW = 3.0, 1.35
 
-# экономика
-APT_BASE_COST, APT_COST_GROW = 25.0, 1.60
-SUPPLY_DROP_BASE, SUPPLY_DROP_GROW = 10.0, 1.28
+# экономика (ресайл v3.1: доходы и цены ÷5 — цифры реалистичнее)
+APT_BASE_COST, APT_COST_GROW = 5.0, 1.60
+SUPPLY_DROP_BASE, SUPPLY_DROP_GROW = 3.0, 1.28
 WAVE_GAP_SEC = 3.0       # пауза между волнами
-LOOT_CHANCE = 0.45
+LOOT_CHANCE = 0.09
 SELL_RATIO = 0.5
 ITEM_UPGRADE_MULT = 1.15
-ITEM_UPGRADE_BASE, ITEM_UPGRADE_GROW = 10.0, 1.4
+ITEM_UPGRADE_BASE, ITEM_UPGRADE_GROW = 2.0, 1.4
 
 SIM_MINUTES = 30
 random.seed(42)

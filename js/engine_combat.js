@@ -13,8 +13,11 @@
   P.WAVE_GAP = WAVE_GAP;
 
   /* Создать сессию боя для зоны. cb(event) — события для UI/тестов:
-     {type:'waveStart'|'waveWin'|'waveLoss'|'knockout'|'revive'|'zoneClear', ...}
-     zoneClear приходит один раз — при первой зачистке круга (волна wavesCap). */
+     {type:'waveStart'|'waveWin'|'waveLoss'|'knockout'|'revive'|'zoneClear',
+      zoneId, ...}
+     zoneClear приходит при убийстве босса круга (волна wavesCap).
+     Прогресс по волнам (wave+1) идёт ТОЛЬКО в авто-режиме
+     (state.autoFarm): без авто герой фармит текущую волну. */
   P.createCombat = function (state, zoneId, cb) {
     const zone = state.zones[zoneId];
     const zdef = P.ZONES[zoneId];
@@ -33,19 +36,20 @@
       combat.enemy.maxHp = combat.enemy.hp;
       combat.phase = "fight";
       combat.elapsed = 0;
-      cb && cb({ type: "waveStart", wave: n, enemy: combat.enemy });
+      cb && cb({ type: "waveStart", zoneId, wave: n, enemy: combat.enemy });
     }
 
     function win() {
       const n = zone.wave;
       const clearedCycle = n % zdef.wavesCap === 0; // убит босс круга
-      cb && cb({ type: "waveWin", wave: n, enemy: combat.enemy });
+      cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy });
       // награды начисляет engine_game (там же лут и технологии)
-      zone.wave += 1;
-      zone.maxWave = Math.max(zone.maxWave || 1, zone.wave); // потолок для ◀ ▶
       if (clearedCycle) {
-        // зачистка круга: один раз — открытие следующей зоны, дальше фарм
         cb && cb({ type: "zoneClear", zoneId, cycle: Math.floor(n / zdef.wavesCap) });
+      }
+      if (state.autoFarm) {
+        zone.wave += 1;
+        zone.maxWave = Math.max(zone.maxWave || 1, zone.wave); // потолок для ◀ ▶
       }
       combat.phase = "gap";
       combat.timer = WAVE_GAP;
@@ -57,13 +61,13 @@
       if (state.hero.hp <= P.calcHero(state).hpMax * KNOCKOUT_HP) {
         combat.phase = "knockout";
         combat.timer = P.CONFIG.KNOCKOUT_SEC;
-        cb && cb({ type: "knockout" });
+        cb && cb({ type: "knockout", zoneId });
       } else {
         // отступление: короткая пауза + реген вне боя
         combat.phase = "gap";
         combat.timer = 5;
         combat.enemy = null;
-        cb && cb({ type: "waveLoss" });
+        cb && cb({ type: "waveLoss", zoneId });
       }
     }
 
@@ -76,7 +80,7 @@
           state.hero.hp = hero.hpMax * P.CONFIG.REVIVE_HP;
           combat.phase = "gap";
           combat.timer = 3;
-          cb && cb({ type: "revive" });
+          cb && cb({ type: "revive", zoneId });
         }
         return;
       }

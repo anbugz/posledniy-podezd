@@ -7,11 +7,20 @@
     const state = loaded.state;
 
     const game = P.createGame(state, {
+      onWaveWin(ev) {
+        if (panel) {
+          const hero = P.calcHero(state);
+          const sup = Math.floor(P.waveSupplies(ev.wave) * hero.supMult);
+          battleView.addFloater(350, 150, "+" + sup + " 🥫", "#5ee87d");
+          panel.refresh();
+        }
+      },
       onKnockout() {
         panel && panel.refresh();
       },
       onZoneClear() {
         panel && panel.refresh();
+        panel && panel.renderBase();
       },
     });
 
@@ -23,12 +32,25 @@
     if (loaded.report) panel.showOffline(loaded.report);
 
     // dev: ?ff=СЕКУНДЫ — синхронный fast-forward до первого кадра (снимки/проверки)
+    // dev: ?screen=base — открыть экран Базы; ?modal=inv|char — открыть модалку
     if (typeof location !== "undefined") {
       const m = /[?&]ff=(\d+)/.exec(location.search);
       if (m) {
         const steps = Math.min(parseInt(m[1], 10), 3600) / 0.05;
         for (let i = 0; i < steps; i++) game.update(0.05);
         panel.refresh();
+      }
+      if (/[?&]screen=base/.test(location.search)) {
+        panel.renderBase();
+        panel.showScreen("base");
+      }
+      const mm = /[?&]modal=(inv|char)/.exec(location.search);
+      if (mm) (mm[1] === "inv" ? document.getElementById("openInv") : document.getElementById("openChar")).click();
+      const sm = /[?&]sel=(\d+)/.exec(location.search);
+      if (sm) {
+        const tiles = document.querySelectorAll(".item-tile");
+        const t = tiles[Math.min(parseInt(sm[1], 10), tiles.length - 1)];
+        if (t) t.click();
       }
     }
 

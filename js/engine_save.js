@@ -24,8 +24,12 @@
       zones: {
         apartment: { unlocked: true, level: 1, wave: 1, maxWave: 1 },
         entrance: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
+        house: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
       },
+      activeZone: "apartment",
       autoFarm: false,
+      autoSell: 0,           // 0=выкл; N=продавать всё не выше N-й редкости
+      hubUnlocked: false,    // зачистка Дома -> база становится Хабом
       skills,
       dayNight: { phase: "day", phaseEndsAt: 180 },
       event: { nextAt: 600, activeUntil: 0 },
@@ -142,8 +146,8 @@
       state.totalSupplies += sup;
       report.supplies += sup;
       state.tech += P.rollTech(enemy.kind, 0.5);
-      // гарантированное оружие на волне 3
-      if (zone.wave === 3) {
+      // гарантированное оружие на 3-й волне круга
+      if (P.waveCycle(zone.wave, zdef.wavesCap).nEff === 3) {
         const loot = P.rollGuaranteedWeapon(state, zdef.tier);
         if (loot) report.items.push(loot);
       } else {
