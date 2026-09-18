@@ -42,6 +42,7 @@
       cb && cb({ type: "waveWin", wave: n, enemy: combat.enemy });
       // награды начисляет engine_game (там же лут и технологии)
       zone.wave += 1;
+      zone.maxWave = Math.max(zone.maxWave || 1, zone.wave); // потолок для ◀ ▶
       if (clearedCycle) {
         // зачистка круга: один раз — открытие следующей зоны, дальше фарм
         cb && cb({ type: "zoneClear", zoneId, cycle: Math.floor(n / zdef.wavesCap) });

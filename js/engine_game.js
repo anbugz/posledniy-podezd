@@ -34,10 +34,32 @@
         if (ev.wave === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier);
         else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false);
         if (loot) game.lootQueue.push(loot);
+        // авто-фарм: победили — если следующая волна тоже проходима, идём выше,
+        // иначе остаёмся фармить текущую (осцилляция у «стены» сложности)
+        if (state.autoFarm) {
+          const zone = state.zones.apartment;
+          const nextEnemy = P.enemyStats(zone.wave, zdef.tier, zdef.wavesCap);
+          if (P.waveCheck(hero, nextEnemy, state.hero.hp).win) {
+            zone.wave += 1;
+            zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);
+          }
+        }
         hooks.onWaveWin && hooks.onWaveWin(ev);
       } else if (ev.type === "knockout") {
         state.stats.deaths++;
+        // авто-фарм: нокаут — отступаем на волну ниже
+        if (state.autoFarm) {
+          const zone = state.zones.apartment;
+          zone.wave = Math.max(1, zone.wave - 1);
+        }
         hooks.onKnockout && hooks.onKnockout(ev);
+      } else if (ev.type === "waveLoss") {
+        // авто-фарм: отступление — откатываемся на волну ниже
+        if (state.autoFarm) {
+          const zone = state.zones.apartment;
+          zone.wave = Math.max(1, zone.wave - 1);
+        }
+        hooks.onWaveLoss && hooks.onWaveLoss(ev);
       } else if (ev.type === "zoneClear") {
         const next = P.ZONES[ev.zoneId].next;
         if (next && state.zones[next] && !state.zones[next].unlocked) {
@@ -92,6 +114,17 @@
     game.activeSkillMult = skillsMult;
     game.isNight = isNight;
     game.isEvent = isEvent;
+
+    /* Переключить текущую волну (◀ ▶): только вне боя, в пределах
+       [1, maxWave]. Возвращает true, если волна изменилась. */
+    game.setWave = function (n) {
+      const zone = state.zones.apartment;
+      if (game.combat.phase === "fight") return false;
+      n = Math.max(1, Math.min(n, zone.maxWave || 1));
+      if (n === zone.wave) return false;
+      zone.wave = n;
+      return true;
+    };
 
     /* Главный тик. dt в секундах. */
     game.update = function (dt) {

@@ -309,5 +309,70 @@ function approx(a, b, eps, msg) {
   assert(state.dayNight.phase === "day" || state.dayNight.phase === "night", "день/ночь работает");
 }
 
+// ---------- переключение волн: maxWave, setWave, границы ----------
+{
+  const state = P.defaultState();
+  const game = P.createGame(state, {});
+  const zone = state.zones.apartment;
+  assert(zone.maxWave === 1, "maxWave стартует с 1");
+  assert(!game.setWave(5), "setWave выше maxWave отклонён");
+  assert(zone.wave === 1, "волна не изменилась");
+  // выигрываем волну 1 -> wave и maxWave становятся 2
+  for (let i = 0; i < 1200 && zone.wave === 1; i++) game.update(0.05);
+  assert(zone.wave === 2 && zone.maxWave === 2, "победа: wave и maxWave выросли");
+  assert(game.setWave(1), "возврат на предыдущую волну");
+  assert(zone.wave === 1, "волна переключена на 1");
+  assert(!game.setWave(0), "ниже 1 нельзя");
+  assert(game.setWave(2), "снова вперёд на достигнутую волну");
+  // во время боя переключать нельзя
+  for (let i = 0; i < 1200 && game.combat.phase !== "fight"; i++) game.update(0.05);
+  assert(game.combat.phase === "fight", "идёт бой");
+  assert(!game.setWave(1), "setWave запрещён в фазе fight");
+}
+
+// ---------- авто-фарм: нокаут откатывает волну ----------
+{
+  const state = P.defaultState();
+  state.zones.apartment.wave = 10;
+  state.zones.apartment.maxWave = 10;
+  state.autoFarm = true;
+  const game = P.createGame(state, {});
+  let knocked = false;
+  for (let i = 0; i < 6000 && !knocked; i++) {
+    game.update(0.05);
+    knocked = game.combat.phase === "knockout";
+  }
+  assert(knocked, "герой получил нокаут на волне 10");
+  assert(state.zones.apartment.wave === 9, "авто-фарм: нокаут откатил волну на 1");
+  assert(state.zones.apartment.maxWave === 10, "maxWave не уменьшается");
+}
+
+// ---------- авто-фарм: победа эскалирует на проходимую волну ----------
+{
+  const state = P.defaultState();
+  state.autoFarm = true;
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 2000 }, affixes: [], lvl: 0 };
+  const game = P.createGame(state, {});
+  for (let i = 0; i < 2400; i++) game.update(0.05);
+  const zone = state.zones.apartment;
+  // каждая победа поднимает волну ещё на 1, пока следующая проходима
+  assert(zone.wave - 1 > state.stats.wavesCleared, "авто-фарм: эскалация на проходимую волну");
+  assert(zone.maxWave === zone.wave, "maxWave следует за эскалацией");
+}
+
+// ---------- миграция: maxWave не ниже достигнутой волны ----------
+{
+  const old = {
+    version: 2, supplies: 100, tech: 0, totalSupplies: 100,
+    hero: { hp: 150 }, equipment: P.startingEquipment(),
+    zones: { apartment: { unlocked: true, level: 2, wave: 7 }, entrance: { unlocked: false, level: 1, wave: 1 } },
+    skills: {}, dayNight: null, event: null,
+    stats: {}, lastTick: Date.now(),
+  };
+  const s = P.migrate(old);
+  assert(s.zones.apartment.maxWave === 7, "maxWave мигрирует не ниже wave");
+  assert(s.autoFarm === false, "autoFarm выключен по умолчанию");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

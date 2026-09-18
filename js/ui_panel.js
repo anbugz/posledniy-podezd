@@ -43,7 +43,8 @@
     const el = {
       supplies: $("supplies"), income: $("income"), tech: $("tech"),
       dps: $("dps"), hp: $("hp"), armor: $("armor"), crit: $("crit"),
-      wave: $("wave"), winChance: $("winChance"),
+      wave: $("wave"), maxWave: $("maxWave"), winChance: $("winChance"),
+      wavePrev: $("wavePrev"), waveNext: $("waveNext"), autoFarm: $("autoFarm"),
       zoneLevel: $("zoneLevel"), zoneCost: $("zoneCost"), buyZone: $("buyZone"),
       skills: $("skills"),
       trainCap: $("trainCap"), trainingGrid: $("training-grid"),
@@ -61,6 +62,19 @@
         forceHeavy = true;
         refresh();
       }
+    });
+
+    // переключение волн ◀ ▶ (вне боя, в пределах [1, maxWave])
+    el.wavePrev.addEventListener("click", () => {
+      if (game.setWave(state.zones.apartment.wave - 1)) refresh();
+    });
+    el.waveNext.addEventListener("click", () => {
+      if (game.setWave(state.zones.apartment.wave + 1)) refresh();
+    });
+    // авто-фарм: сам отступает при поражении и ползёт выше, пока побеждает
+    el.autoFarm.addEventListener("click", () => {
+      state.autoFarm = !state.autoFarm;
+      refresh();
     });
 
     // кнопки сумки
@@ -223,6 +237,12 @@
       let waveText = c.nEff + " / " + zdef.wavesCap;
       if (c.cycle > 0) waveText += " · круг " + (c.cycle + 1);
       el.wave.textContent = waveText;
+      el.maxWave.textContent = zone.maxWave || 1;
+      const canSwitch = game.combat.phase !== "fight";
+      el.wavePrev.disabled = !canSwitch || zone.wave <= 1;
+      el.waveNext.disabled = !canSwitch || zone.wave >= (zone.maxWave || 1);
+      el.autoFarm.classList.toggle("on", !!state.autoFarm);
+      el.autoFarm.textContent = state.autoFarm ? "Авто: вкл" : "Авто: выкл";
       if (game.combat.phase === "fight" && game.combat.enemy) {
         const chance = P.winChancePct(hero, game.combat.enemy, state.hero.hp);
         el.winChance.textContent = chance + "%";

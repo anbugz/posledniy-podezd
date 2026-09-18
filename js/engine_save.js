@@ -22,9 +22,10 @@
       bagSize: P.CONFIG.BAG_START,
       training: { str: 0, vit: 0, def: 0, acc: 0 },
       zones: {
-        apartment: { unlocked: true, level: 1, wave: 1 },
-        entrance: { unlocked: false, level: 1, wave: 1 },
+        apartment: { unlocked: true, level: 1, wave: 1, maxWave: 1 },
+        entrance: { unlocked: false, level: 1, wave: 1, maxWave: 1 },
       },
+      autoFarm: false,
       skills,
       dayNight: { phase: "day", phaseEndsAt: 180 },
       event: { nextAt: 600, activeUntil: 0 },
@@ -75,7 +76,9 @@
     s.training = Object.assign({ str: 0, vit: 0, def: 0, acc: 0 }, raw.training);
     s.zones = Object.assign(d.zones, raw.zones);
     for (const id of P.ZONE_ORDER) {
-      s.zones[id] = Object.assign({ unlocked: false, level: 1, wave: 1 }, s.zones[id]);
+      s.zones[id] = Object.assign({ unlocked: false, level: 1, wave: 1, maxWave: 1 }, s.zones[id]);
+      // старые сейвы без maxWave: потолок не ниже уже достигнутой волны
+      s.zones[id].maxWave = Math.max(s.zones[id].maxWave || 1, s.zones[id].wave || 1);
     }
     s.skills = Object.assign(d.skills, raw.skills);
     s.stats = Object.assign(d.stats, raw.stats);
@@ -153,6 +156,7 @@
         report.zoneUnlocked = zdef.next;
       }
       zone.wave += 1;
+      zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);
       state.stats.wavesCleared++;
     }
     report.tech = state.tech;
