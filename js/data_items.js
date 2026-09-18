@@ -30,6 +30,21 @@
     }
   };
 
+  /* Пути к сгенерированным PNG-иконкам (v3.3). Дублирует логику эмодзи выше. */
+  P.slotIconImg = function (item) {
+    if (!item) return null;
+    switch (item.slot) {
+      case "weapon":
+        return item.stats.dps >= 15 ? "img/icons/icon_gun.png" : item.stats.dps >= 9 ? "img/icons/icon_bat.png" : "img/icons/icon_knife.png";
+      case "helmet": return "img/icons/icon_helmet.png";
+      case "armor": return "img/icons/icon_armor.png";
+      case "gloves": return "img/icons/icon_gloves.png";
+      case "boots": return "img/icons/icon_boots.png";
+      case "accessory": return "img/icons/icon_watch.png";
+      default: return null;
+    }
+  };
+
   // редкость: множитель бюджета и шанс дропа с обычной волны
   P.RARITIES = [
     { id: "common",    name: "Обычный",    mult: 1.0,  chance: 0.25 },

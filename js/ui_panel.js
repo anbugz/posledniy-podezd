@@ -135,7 +135,7 @@
     function hideTooltip() { el.tooltip.classList.add("hidden"); }
 
     function itemTooltipHtml(item, equipped) {
-      let html = "<h4 class='" + rarityClass(item.rarity) + "'>" + P.slotIcon(item) + " " + item.name + "</h4>";
+      let html = "<h4 class='" + rarityClass(item.rarity) + "'><img class='tt-icon' src='" + P.slotIconImg(item) + "' alt=''> " + item.name + "</h4>";
       html += "<div class='tt-rar tt-" + item.rarity + "'>" + (RARITY_NAME[item.rarity] || item.rarity) +
         (item.lvl ? " · усилен +" + item.lvl : "") + "</div>";
       for (const l of itemStatsLines(item)) html += "<div class='tt-line'>" + l.text + "</div>";
@@ -199,7 +199,13 @@
         const btn = slotBtns[slot];
         const it = state.equipment[slot];
         btn.className = "slot " + (it ? rarityClass(it.rarity) : "empty");
-        btn.textContent = it ? P.slotIcon(it) : "▫️";
+        btn.textContent = "";
+        const img = document.createElement("img");
+        img.className = "slot-img";
+        const src = it ? P.slotIconImg(it) : null;
+        if (src) { img.src = src; img.alt = it.name; }
+        else img.style.visibility = "hidden";
+        btn.appendChild(img);
         btn.title = "";
         const tag = document.createElement("span");
         tag.className = "slot-tag";
@@ -334,7 +340,7 @@
         return;
       }
       const equipped = state.equipment[item.slot];
-      let html = "<h3 class='" + rarityClass(item.rarity) + "'>" + P.slotIcon(item) + " " + item.name + "</h3>";
+      let html = "<h3 class='" + rarityClass(item.rarity) + "'><img class='tt-icon' src='" + P.slotIconImg(item) + "' alt=''> " + item.name + "</h3>";
       html += "<div class='d-line tt-" + item.rarity + "'>" + (RARITY_NAME[item.rarity] || item.rarity) +
         (item.lvl ? " · усилен +" + item.lvl : "") + "</div>";
       for (const l of itemStatsLines(item)) html += "<div class='d-line'>" + l.text + "</div>";
@@ -410,7 +416,10 @@
       state.bag.forEach((item, i) => {
         const tile = document.createElement("button");
         tile.className = "item-tile " + rarityClass(item.rarity) + (i === selectedBagIdx ? " selected" : "");
-        tile.textContent = P.slotIcon(item);
+        const tImg = document.createElement("img");
+        tImg.src = P.slotIconImg(item);
+        tImg.alt = item.name;
+        tile.appendChild(tImg);
         if (item.lvl) {
           const tag = document.createElement("span");
           tag.className = "lvl-tag";

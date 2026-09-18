@@ -381,3 +381,8 @@ canvas {
   .bag-grid { grid-template-columns: repeat(6, 1fr); }
   .skills { margin-left: 0; }
 }
+
+/* v3.3: сгенерированные арты */
+.slot-img { width: 62%; height: 62%; object-fit: contain; pointer-events: none; }
+.item-tile img { width: 72%; height: 72%; object-fit: contain; pointer-events: none; }
+.tt-icon { width: 16px; height: 16px; vertical-align: -3px; }

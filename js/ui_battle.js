@@ -16,6 +16,20 @@
     text: "#e8e4f0",
   };
 
+  /* v3.3: сгенерированные арты (задники зон, спрайты). Пока картинка не
+     загрузилась — рисуем кодом, как раньше. */
+  const ART = {};
+  function loadArt(key, src) { const im = new Image(); im.src = src; ART[key] = im; }
+  loadArt("bg_apartment", "img/bg/bg_apartment.png");
+  loadArt("bg_entrance", "img/bg/bg_entrance.png");
+  loadArt("bg_yard", "img/bg/bg_yard.png");
+  loadArt("bg_house", "img/bg/bg_house.png");
+  loadArt("bg_district", "img/bg/bg_district.png");
+  loadArt("hero", "img/sprites/hero.png");
+  loadArt("drone", "img/sprites/enemy_drone.png");
+  loadArt("brute", "img/sprites/enemy_brute.png");
+  const artReady = (im) => im && im.complete && im.naturalWidth > 0;
+
   P.initBattleView = function (game, canvas) {
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
@@ -37,6 +51,9 @@
     function drawRoom(t) {
       const night = game.isNight();
       const zoneId = state.activeZone || "apartment";
+      // сгенерированный задник зоны; пока не загружен — рисуем кодом ниже
+      const bgArt = ART["bg_" + zoneId];
+      if (artReady(bgArt)) { ctx.drawImage(bgArt, 0, 0, W, H); return; }
       // пол и стены — общий каркас, детали — по зоне
       ctx.fillStyle = night ? PAL.wallNight : PAL.wall;
       ctx.fillRect(0, 0, W, FLOOR_Y);
@@ -265,6 +282,25 @@
       const x = HERO_X, y = FLOOR_Y + bob * 0;
       const dead = game.combat.phase === "knockout";
       const alpha = dead ? 0.4 + 0.2 * Math.sin(t / 4) : 1;
+
+      // спрайт героя (сгенерированный); пока не загружен — кодом ниже
+      if (artReady(ART.hero)) {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(ART.hero, x - 34, y - 80, 68, 80);
+        ctx.globalAlpha = 1;
+        const hpPct = Math.max(0, state.hero.hp / hero.hpMax);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(x - 20, y - 92, 40, 5);
+        ctx.fillStyle = PAL.heroHp;
+        ctx.fillRect(x - 19, y - 91, Math.round(38 * hpPct), 3);
+        if (dead) {
+          ctx.fillStyle = PAL.text;
+          ctx.font = "8px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("БЕЗ СОЗНАНИЯ " + Math.ceil(game.combat.timer) + "с", x, y - 98);
+        }
+        return;
+      }
       ctx.globalAlpha = alpha;
 
       // ноги
@@ -326,7 +362,12 @@
       const shake = enemyAnimHit > 0 ? (Math.random() - 0.5) * 3 : 0;
       const bob = Math.sin(t / 7 + 2) * 2;
 
-      if (e.kind === "boss") {
+      // сгенерированные спрайты: босс — тяжёлый, остальные — дрон
+      const eArt = ART[e.kind === "boss" ? "brute" : "drone"];
+      if (artReady(eArt)) {
+        const h = e.kind === "boss" ? 118 : e.kind === "elite" ? 92 : 70;
+        ctx.drawImage(eArt, x - h / 2 + shake, FLOOR_Y - h + bob * 0.3, h, h);
+      } else if (e.kind === "boss") {
         // дрон-носильщик: корпус + ротор + мигалка
         ctx.fillStyle = PAL.bossDrone;
         ctx.fillRect(x - 22 + shake, y - 70 + bob * 0.3, 44, 26);
