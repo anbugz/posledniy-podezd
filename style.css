@@ -248,7 +248,13 @@ canvas {
 .train-card button:hover:not(:disabled) { background: #28304a; }
 .train-card button:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--line); }
 
-.footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.reset-btn {
+  font-family: inherit; font-size: 11px; color: var(--muted);
+  background: transparent; border: 1px solid #3a3f55; border-radius: 8px;
+  padding: 3px 8px; cursor: pointer; transition: all 0.15s ease;
+}
+.reset-btn:hover { color: #e85e5e; border-color: #e85e5e; }
 
 /* ---------- модалки ---------- */
 .overlay {

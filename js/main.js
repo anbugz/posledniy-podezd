@@ -59,7 +59,22 @@
       P.save(state);
       panel.flashSaved();
     }, 15000);
-    window.addEventListener("beforeunload", () => P.save(state));
+    window.addEventListener("beforeunload", () => {
+      if (!window.__podezdReset) P.save(state);
+    });
+
+    // сброс прогресса: чистим сейв и перезагружаемся без beforeunload-сейва
+    const resetBtn = document.getElementById("resetSave");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (!confirm("Сбросить весь прогресс и начать заново?")) return;
+        if (!confirm("Точно? Восстановить сохранение будет нельзя.")) return;
+        window.__podezdReset = true;
+        P.storage.removeItem(P.SAVE_KEY);
+        for (const k of P.OLD_SAVE_KEYS || []) P.storage.removeItem(k);
+        location.reload();
+      });
+    }
 
     // главный цикл: фиксированный шаг 50 мс
     let last = performance.now();
