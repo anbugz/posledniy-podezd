@@ -1,12 +1,12 @@
 /* «Последний подъезд» — data: враги.
    Формулы откалиброваны balance_sim.py (2026-09-17, правки v2).
-   Правки v2: рост HP 1.20 → 1.15, общий штраф −25% к HP, после wavesCap
+   Правки v2: рост HP 1.125 (калибровка v3.3 — без прокачек не должно быть стены), общий штраф −25% к HP, после wavesCap
    волны идут по кругу с ростом WAVE_LOOP_MULT за круг. */
 (function (P) {
   "use strict";
 
   P.ENEMY = {
-    hpBase: 30, hpGrow: 1.15, hpTier: 2.0, hpGlobal: 0.75,
+    hpBase: 30, hpGrow: 1.125, hpTier: 2.0, hpGlobal: 0.75,
     dpsBase: 2.4, dpsGrow: 1.14, dpsTier: 1.8,
     eliteEvery: 5, eliteHp: 2.5, eliteDps: 1.3,
     bossEvery: 10, bossHp: 6.0, bossDps: 1.8,
