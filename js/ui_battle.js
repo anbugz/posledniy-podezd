@@ -482,23 +482,22 @@
         drawEnemy(t);
         drawFloatersAndFlashes();
         drawStatus(t);
-
-        // всплывающий урон (throttled): в бою каждые ~0.5с
-        const inFight = game.combat.phase === "fight" && game.combat.enemy;
-        if (inFight) {
-          const hero = P.calcHero(state);
-          if (Math.floor(t / 30) !== Math.floor((t - 1) / 30)) {
-            const crit = Math.random() < hero.crit;
-            const dmg = Math.round(hero.dps * game.activeSkillMult() * (crit ? hero.critDmg : 1) * 0.5);
-            addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, crit ? "#ffe87d" : "#e8e4f0");
-            if (state.equipment.weapon && state.equipment.weapon.stats.dps >= 15) {
-              flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: 8 });
-            }
-            enemyAnimHit = 4;
-          }
-        }
         if (enemyAnimHit > 0) enemyAnimHit--;
-        lastTickHadEnemy = !!inFight;
+        lastTickHadEnemy = !!(game.combat.phase === "fight" && game.combat.enemy);
+      },
+      /* реальный удар героя: всплывающий урон по врагу + тряска/вспышка */
+      heroHit(ev) {
+        const dmg = Math.max(1, Math.round(ev.dmg));
+        addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
+        if (state.equipment.weapon && state.equipment.weapon.stats.dps >= 15) {
+          flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: 8 });
+        }
+        enemyAnimHit = 4;
+      },
+      /* реальный удар врага: красный урон над героем */
+      enemyHit(ev) {
+        const dmg = Math.max(1, Math.round(ev.dmg));
+        addFloater(HERO_X + (Math.random() - 0.5) * 16, FLOOR_Y - 96, "-" + dmg, "#e85e5e");
       },
       addFloater,
     };

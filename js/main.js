@@ -22,11 +22,18 @@
         panel && panel.refresh();
         panel && panel.renderBase();
       },
+      onEvent(ev) {
+        // реальные размахи боя -> всплывающие цифры урона
+        if (!battleView) return;
+        if (ev.type === "heroHit") battleView.heroHit(ev);
+        else if (ev.type === "enemyHit") battleView.enemyHit(ev);
+      },
     });
 
     const canvas = document.getElementById("battle");
     const battleView = P.initBattleView(game, canvas);
     const panel = P.initPanel(game, battleView);
+    window.__game = game; // dev: доступ к состоянию из консоли
 
     panel.refresh();
     if (loaded.report) panel.showOffline(loaded.report);
