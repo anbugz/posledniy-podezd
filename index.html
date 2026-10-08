@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=350">
+  <link rel="stylesheet" href="style.css?v=360">
 </head>
 <body>
   <main class="wrap">
@@ -94,7 +94,7 @@
     </footer>
   </main>
 
-  <!-- Модал: инвентарь -->
+  <!-- Модал: инвентарь + кукла героя + статы -->
   <div class="overlay" id="inv-modal">
     <div class="modal wide">
       <div class="modal-head">
@@ -115,23 +115,21 @@
           <button id="inv-close" class="modal-x" title="Закрыть">✕</button>
         </div>
       </div>
-      <div class="inv-body">
-        <div class="bag-grid" id="bag-grid"></div>
-        <div class="inv-detail" id="inv-detail">
-          <p class="inv-hint">Наведите курсор на предмет — увидите статы и сравнение с надетым. Клик — выбрать.</p>
+      <div class="inv-cols">
+        <div class="doll-col">
+          <div class="doll" id="doll">
+            <img class="doll-hero" src="img/sprites/hero.png" alt="Герой" draggable="false">
+          </div>
+          <div class="doll-score" id="doll-score"></div>
         </div>
+        <div class="inv-body">
+          <div class="bag-grid" id="bag-grid"></div>
+          <div class="inv-detail" id="inv-detail">
+            <p class="inv-hint">Наведите курсор на предмет — увидите статы и сравнение с надетым. Клик — выбрать. Клик по слоту куклы — надетый предмет.</p>
+          </div>
+        </div>
+        <div class="doll-stats" id="doll-stats"></div>
       </div>
-    </div>
-  </div>
-
-  <!-- Модал: персонаж -->
-  <div class="overlay" id="char-modal">
-    <div class="modal">
-      <div class="modal-head">
-        <span class="modal-title">👤 Персонаж</span>
-        <button id="char-close" class="modal-x" title="Закрыть">✕</button>
-      </div>
-      <div id="char-body"></div>
     </div>
   </div>
 
@@ -155,19 +153,19 @@
   <!-- Плавающий тултип предметов -->
   <div id="tooltip" class="tooltip hidden"></div>
 
-  <script src="js/ns.js?v=350"></script>
-  <script src="js/data_zones.js?v=350"></script>
-  <script src="js/data_enemies.js?v=350"></script>
-  <script src="js/data_items.js?v=350"></script>
-  <script src="js/data_skills.js?v=350"></script>
-  <script src="js/engine_stats.js?v=350"></script>
-  <script src="js/engine_combat.js?v=350"></script>
-  <script src="js/engine_loot.js?v=350"></script>
-  <script src="js/engine_econ.js?v=350"></script>
-  <script src="js/engine_save.js?v=350"></script>
-  <script src="js/engine_game.js?v=350"></script>
-  <script src="js/ui_battle.js?v=350"></script>
-  <script src="js/ui_panel.js?v=350"></script>
-  <script src="js/main.js?v=350"></script>
+  <script src="js/ns.js?v=360"></script>
+  <script src="js/data_zones.js?v=360"></script>
+  <script src="js/data_enemies.js?v=360"></script>
+  <script src="js/data_items.js?v=360"></script>
+  <script src="js/data_skills.js?v=360"></script>
+  <script src="js/engine_stats.js?v=360"></script>
+  <script src="js/engine_combat.js?v=360"></script>
+  <script src="js/engine_loot.js?v=360"></script>
+  <script src="js/engine_econ.js?v=360"></script>
+  <script src="js/engine_save.js?v=360"></script>
+  <script src="js/engine_game.js?v=360"></script>
+  <script src="js/ui_battle.js?v=360"></script>
+  <script src="js/ui_panel.js?v=360"></script>
+  <script src="js/main.js?v=360"></script>
 </body>
 </html>

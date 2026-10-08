@@ -330,13 +330,43 @@ canvas {
 .inv-hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* персонаж */
-#char-body .ch-row {
+.ch-row {
   display: flex; justify-content: space-between; padding: 6px 2px;
   font-size: 13px; border-bottom: 1px solid var(--line);
 }
-#char-body .ch-row span:first-child { color: var(--muted); }
-#char-body .ch-row b { color: var(--text); }
-#char-body .ch-sect { margin: 10px 0 4px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+.ch-row span:first-child { color: var(--muted); }
+.ch-row b { color: var(--text); }
+.ch-sect { margin: 10px 0 4px; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+
+/* кукла героя в инвентаре (v3.6) */
+.modal.wide { width: 1120px; max-width: 96vw; }
+.inv-cols { display: grid; grid-template-columns: 240px 1fr 240px; gap: 14px; align-items: start; }
+.doll-col {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; text-align: center;
+}
+.doll {
+  display: grid; grid-template-columns: 62px 1fr 62px; grid-template-rows: repeat(3, 62px);
+  gap: 8px; justify-items: center; align-items: center;
+}
+.doll-hero {
+  grid-column: 2; grid-row: 1 / 4; width: 96px; align-self: end;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.55));
+}
+.doll .slot { width: 62px; font-size: 22px; }
+.doll .slot.selected { border-color: var(--accent); box-shadow: 0 0 10px rgba(255, 232, 125, 0.35); }
+.doll-score { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.doll-score b { color: var(--accent); }
+.doll-stats {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-size: 12px; max-height: 62vh; overflow-y: auto;
+}
+.doll-stats .ch-row { font-size: 12px; padding: 4px 2px; }
+@media (max-width: 1100px) {
+  .inv-cols { grid-template-columns: 1fr; }
+  .doll-stats { max-height: none; }
+}
 
 /* ---------- тултип ---------- */
 .tooltip {
@@ -389,7 +419,16 @@ canvas {
   .skills { margin-left: 0; }
 }
 
-/* v3.3: сгенерированные арты */
-.slot-img { width: 62%; height: 62%; object-fit: contain; pointer-events: none; }
+/* пульс свежеразблокированной зоны (v3.6) */
+@keyframes chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(94, 232, 125, 0.55); }
+  50% { box-shadow: 0 0 0 7px rgba(94, 232, 125, 0); }
+}
+.zone-chip.just-unlocked {
+  border-color: var(--green); color: var(--green);
+  animation: chip-pulse 1s ease-in-out infinite;
+}
+
+/* v3.3: сгенерированные арты */.slot-img { width: 62%; height: 62%; object-fit: contain; pointer-events: none; }
 .item-tile img { width: 72%; height: 72%; object-fit: contain; pointer-events: none; }
 .tt-icon { width: 16px; height: 16px; vertical-align: -3px; }

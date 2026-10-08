@@ -112,7 +112,7 @@
       invModal: $("inv-modal"), bagGrid: $("bag-grid"), bagCount: $("bagCount"),
       invDetail: $("inv-detail"), equipBest: $("equipBest"),
       autoSellSel: $("autoSellSel"), autoSellOn: $("autoSellOn"), sellBelow: $("sellBelow"),
-      charModal: $("char-modal"), charBody: $("char-body"),
+      doll: $("doll"), dollScore: $("doll-score"), dollStats: $("doll-stats"),
       trainingSection: $("training-section"), veteranNote: $("veteran-note"),
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"), tooltip: $("tooltip"),
@@ -214,6 +214,80 @@
       }
     }
 
+    /* ---------- кукла героя в окне инвентаря ---------- */
+    let selectedEquip = null; // выбранный слот куклы
+    const DOLL_POS = {
+      helmet: [1, 1], weapon: [1, 3],
+      armor: [2, 1], gloves: [2, 3],
+      boots: [3, 1], accessory: [3, 3],
+    };
+    const dollBtns = {};
+    for (const slot of P.SLOTS) {
+      const btn = document.createElement("button");
+      btn.className = "slot empty";
+      const [r, c] = DOLL_POS[slot];
+      btn.style.gridRow = String(r);
+      btn.style.gridColumn = String(c);
+      btn.addEventListener("click", () => {
+        selectedEquip = selectedEquip === slot ? null : slot;
+        selectedBagIdx = -1;
+        renderInventory();
+      });
+      el.doll.appendChild(btn);
+      dollBtns[slot] = btn;
+      bindTooltip(btn, () => state.equipment[slot], () => null);
+    }
+
+    function renderDoll() {
+      let total = 0;
+      for (const slot of P.SLOTS) {
+        const btn = dollBtns[slot];
+        const it = state.equipment[slot];
+        btn.className = "slot " + (it ? rarityClass(it.rarity) : "empty") + (selectedEquip === slot ? " selected" : "");
+        btn.textContent = "";
+        const img = document.createElement("img");
+        img.className = "slot-img";
+        const src = it ? P.slotIconImg(it) : null;
+        if (src) { img.src = src; img.alt = it.name; }
+        else img.style.visibility = "hidden";
+        btn.appendChild(img);
+        const tag = document.createElement("span");
+        tag.className = "slot-tag";
+        tag.textContent = P.SLOT_INFO[slot].name + (it && it.lvl ? " +" + it.lvl : "");
+        btn.appendChild(tag);
+        if (it) total += P.itemScore(it);
+      }
+      el.dollScore.innerHTML = "мощь экипировки: <b>" + fmt(Math.round(total)) + "</b>";
+    }
+
+    /* ---------- статы героя (правая колонка) ---------- */
+    function renderDollStats() {
+      const hero = P.calcHero(state);
+      const t = state.training;
+      const z = state.zones[state.activeZone];
+      const zdef = P.ZONES[state.activeZone];
+      const c = P.waveCycle(z.wave, zdef.wavesCap);
+      let html = "";
+      html += "<div class='ch-sect'>Бой</div>";
+      html += "<div class='ch-row'><span>DPS (предметы)</span><b>" + fmt(Math.round(hero.dps * 10) / 10) + "</b></div>";
+      html += "<div class='ch-row'><span>DPS эффективный</span><b>" + fmt(Math.round(hero.dpsEff * 10) / 10) + "</b></div>";
+      html += "<div class='ch-row'><span>HP</span><b>" + fmt(Math.ceil(state.hero.hp)) + " / " + fmt(hero.hpMax) + "</b></div>";
+      html += "<div class='ch-row'><span>Броня / снижение</span><b>" + Math.round(hero.armor) + " / " + Math.round(hero.dr * 100) + "%</b></div>";
+      html += "<div class='ch-row'><span>Крит / крит-урон</span><b>" + Math.round(hero.crit * 100) + "% / ×" + hero.critDmg.toFixed(1) + "</b></div>";
+      html += "<div class='ch-row'><span>Двойной удар</span><b>" + Math.round(hero.doubleHit * 100) + "%</b></div>";
+      html += "<div class='ch-row'><span>Реген в бою</span><b>" + Math.round(hero.regenCombat * 100) + "% HP/с</b></div>";
+      html += "<div class='ch-row'><span>Припасы с волн</span><b>×" + hero.supMult.toFixed(2) + "</b></div>";
+      html += "<div class='ch-sect'>Самоделки</div>";
+      for (const key of Object.keys(P.TRAINING)) {
+        html += "<div class='ch-row'><span>" + P.TRAINING[key].name + "</span><b>ур. " + t[key] + "</b></div>";
+      }
+      html += "<div class='ch-sect'>Текущий фронт</div>";
+      html += "<div class='ch-row'><span>Зона</span><b>" + zdef.name + "</b></div>";
+      html += "<div class='ch-row'><span>Волна</span><b>" + c.nEff + " / " + zdef.wavesCap + "</b></div>";
+      html += "<div class='ch-row'><span>Рекорд волны</span><b>" + (z.maxWave || 1) + "</b></div>";
+      el.dollStats.innerHTML = html;
+    }
+
     /* ---------- зоны ---------- */
     const zoneChips = {};
     for (const zid of P.ZONE_ORDER) {
@@ -222,18 +296,25 @@
       btn.className = "zone-chip";
       btn.textContent = zdef.name;
       btn.addEventListener("click", () => {
+        btn.classList.remove("just-unlocked");
         if (game.setZone(zid)) { refresh(); renderBase(); }
       });
       el.zoneChips.appendChild(btn);
       zoneChips[zid] = btn;
     }
 
+    const knownUnlocked = {};
     function refreshZoneChips() {
       for (const zid of P.ZONE_ORDER) {
         const z = state.zones[zid];
         const btn = zoneChips[zid];
         btn.disabled = !z.unlocked;
         btn.classList.toggle("active", state.activeZone === zid);
+        // новая разблокировка — пульсируем, пока игрок не кликнет чип
+        if (z.unlocked && !knownUnlocked[zid] && Object.keys(knownUnlocked).length) {
+          btn.classList.add("just-unlocked");
+        }
+        knownUnlocked[zid] = !!z.unlocked;
         btn.textContent = z.unlocked ? P.ZONES[zid].name : P.ZONES[zid].name + " 🔒";
         if (!z.unlocked) {
           // как открыть: найти зону, которая ведёт в эту
@@ -334,6 +415,54 @@
     });
 
     function renderDetail() {
+      // выбран слот куклы — показываем надетый предмет
+      if (selectedEquip) {
+        const item = state.equipment[selectedEquip];
+        if (!item) {
+          selectedEquip = null;
+        } else {
+          let html = "<h3 class='" + rarityClass(item.rarity) + "'><img class='tt-icon' src='" + P.slotIconImg(item) + "' alt=''> " + item.name + "</h3>";
+          html += "<div class='d-line tt-" + item.rarity + "'>" + (RARITY_NAME[item.rarity] || item.rarity) +
+            (item.lvl ? " · усилен +" + item.lvl : "") + " · надето</div>";
+          for (const l of itemStatsLines(item)) html += "<div class='d-line'>" + l.text + "</div>";
+          const af = affixText(item);
+          if (af) html += "<div class='d-line d-affix'>" + af + "</div>";
+          el.invDetail.innerHTML = html;
+
+          const btns = document.createElement("div");
+          btns.className = "d-btns";
+          const bOff = document.createElement("button");
+          bOff.textContent = "Снять в сумку";
+          bOff.disabled = state.bag.length >= P.bagSize(state);
+          bOff.title = bOff.disabled ? "Сумка полна" : "";
+          bOff.addEventListener("click", () => {
+            if (P.unequipItem(state, selectedEquip)) {
+              selectedEquip = null;
+              forceHeavy = true;
+              refresh();
+              renderInventory();
+            }
+          });
+          btns.appendChild(bOff);
+          if (state.upgradesUnlocked) {
+            const bUpg = document.createElement("button");
+            bUpg.className = "b-upg";
+            const cost = P.itemUpgradeCost(item);
+            bUpg.textContent = "Улучшить — " + fmt(cost);
+            bUpg.disabled = state.supplies < cost;
+            bUpg.addEventListener("click", () => {
+              if (P.upgradeItem(state, "equip", selectedEquip)) {
+                forceHeavy = true;
+                refresh();
+                renderInventory();
+              }
+            });
+            btns.appendChild(bUpg);
+          }
+          el.invDetail.appendChild(btns);
+          return;
+        }
+      }
       const item = state.bag[selectedBagIdx];
       if (!item) {
         el.invDetail.innerHTML = "<p class='inv-hint'>Наведите курсор на предмет — увидите статы и сравнение с надетым. Клик — выбрать.</p>";
@@ -428,48 +557,19 @@
         }
         tile.addEventListener("click", () => {
           selectedBagIdx = i === selectedBagIdx ? -1 : i;
+          selectedEquip = null;
           renderInventory();
         });
         bindTooltip(tile, () => state.bag[i], () => state.equipment[item.slot]);
         el.bagGrid.appendChild(tile);
       });
       renderDetail();
+      renderDoll();
+      renderDollStats();
     }
 
-    /* ---------- персонаж (модал) ---------- */
-    function openChar() {
-      renderChar();
-      el.charModal.classList.add("visible");
-    }
-    function closeChar() { el.charModal.classList.remove("visible"); }
-    el.openChar.addEventListener("click", openChar);
-    $("char-close").addEventListener("click", closeChar);
-
-    function renderChar() {
-      const hero = P.calcHero(state);
-      const t = hero.training;
-      const z = state.zones[state.activeZone];
-      const zdef = P.ZONES[state.activeZone];
-      const c = P.waveCycle(z.wave, zdef.wavesCap);
-      let html = "";
-      html += "<div class='ch-sect'>Бой</div>";
-      html += "<div class='ch-row'><span>DPS (предметы)</span><b>" + fmt(Math.round(hero.dps * 10) / 10) + "</b></div>";
-      html += "<div class='ch-row'><span>DPS эффективный (крит/двойной)</span><b>" + fmt(Math.round(hero.dpsEff * 10) / 10) + "</b></div>";
-      html += "<div class='ch-row'><span>HP</span><b>" + fmt(Math.ceil(state.hero.hp)) + " / " + fmt(hero.hpMax) + "</b></div>";
-      html += "<div class='ch-row'><span>Броня / снижение урона</span><b>" + Math.round(hero.armor) + " / " + Math.round(hero.dr * 100) + "%</b></div>";
-      html += "<div class='ch-row'><span>Крит / крит-урон</span><b>" + Math.round(hero.crit * 100) + "% / ×" + hero.critDmg.toFixed(1) + "</b></div>";
-      html += "<div class='ch-row'><span>Двойной удар</span><b>" + Math.round(hero.doubleHit * 100) + "%</b></div>";
-      html += "<div class='ch-row'><span>Реген в бою</span><b>" + Math.round(hero.regenCombat * 100) + "% HP/с</b></div>";
-      html += "<div class='ch-row'><span>Припасы с волн</span><b>×" + hero.supMult.toFixed(2) + "</b></div>";
-      html += "<div class='ch-sect'>Самоделки</div>";
-      for (const key of Object.keys(P.TRAINING)) {
-        html += "<div class='ch-row'><span>" + P.TRAINING[key].name + "</span><b>ур. " + t[key] + "</b></div>";
-      }
-      html += "<div class='ch-sect'>Текущий фронт</div>";
-      html += "<div class='ch-row'><span>Зона</span><b>" + zdef.name + "</b></div>";
-      html += "<div class='ch-row'><span>Волна</span><b>" + c.nEff + " / " + zdef.wavesCap + (c.cycle > 0 ? " · круг " + (c.cycle + 1) : "") + "</b></div>";
-      el.charBody.innerHTML = html;
-    }
+    /* ---------- 👤 открывает то же окно (кукла + сумка + статы) ---------- */
+    el.openChar.addEventListener("click", openInventory);
 
     /* ---------- база / хаб ---------- */
     function renderBase() {
@@ -581,7 +681,6 @@
     function renderHeavy() {
       refreshSlots();
       renderInventory();
-      if (el.charModal.classList.contains("visible")) renderChar();
       if (!el.screenBase.classList.contains("hidden")) renderBase();
     }
 
@@ -679,7 +778,6 @@
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       closeInventory();
-      closeChar();
     });
 
     return {

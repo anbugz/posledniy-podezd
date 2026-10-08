@@ -45,7 +45,7 @@
 
     function win() {
       const n = zone.wave;
-      const clearedCycle = n % zdef.wavesCap === 0; // убит босс круга
+      const clearedCycle = n === zdef.wavesCap; // первое прохождение зоны — zoneClear один раз
       cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy });
       // награды начисляет engine_game (там же лут и технологии)
       if (clearedCycle) {

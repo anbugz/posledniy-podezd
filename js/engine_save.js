@@ -174,8 +174,8 @@
         const loot = P.rollLoot(state, enemy.kind, zdef.tier, true, Math.random, zone.wave);
         if (loot) report.items.push(loot);
       }
-      // зачистка круга оффлайн -> открываем подъезд
-      if (zone.wave % zdef.wavesCap === 0 && zdef.next && state.zones[zdef.next] && !state.zones[zdef.next].unlocked) {
+      // зачистка зоны оффлайн (первое прохождение) -> открываем следующую зону
+      if (zone.wave === zdef.wavesCap && zdef.next && state.zones[zdef.next] && !state.zones[zdef.next].unlocked) {
         state.zones[zdef.next].unlocked = true;
         report.zoneUnlocked = zdef.next;
       }

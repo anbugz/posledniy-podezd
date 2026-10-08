@@ -102,6 +102,16 @@
     return { equipped: item, unequipped: cur || null };
   };
 
+  /* Снять надетый предмет в сумку (если есть место). */
+  P.unequipItem = function (state, slot) {
+    const item = state.equipment[slot];
+    if (!item) return false;
+    if (state.bag.length >= P.bagSize(state)) return false;
+    state.equipment[slot] = null;
+    state.bag.push(item);
+    return true;
+  };
+
   /* Продать предмет из сумки. Возвращает выручку. */
   P.sellItem = function (state, bagIndex) {
     const item = state.bag[bagIndex];
