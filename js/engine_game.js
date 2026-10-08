@@ -41,15 +41,10 @@
         if (nEff === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, ev.wave);
         else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false, Math.random, ev.wave);
         if (loot) game.lootQueue.push(loot);
-        // авто-фарм: победили — если следующая волна тоже проходима, идём выше,
-        // иначе остаёмся фармить текущую (осцилляция у «стены» сложности)
-        if (state.autoFarm) {
-          const nextEnemy = P.enemyStats(zone.wave, zdef.tier, zdef.wavesCap);
-          if (P.waveCheck(hero, nextEnemy, state.hero.hp).win) {
-            zone.wave += 1;
-            zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);
-          }
-        }
+        // авто-фарм: +1 к волне делает combat.win(); здесь только проверка
+        // «стены»: если следующая волна непроходима — ничего, фармим дальше
+        // (раньше тут был второй +1 — волна перепрыгивала босса 20-й,
+        // zoneClear не срабатывал и зона не открывалась без перезагрузки)
         hooks.onWaveWin && hooks.onWaveWin(ev);
       } else if (ev.type === "knockout") {
         state.stats.deaths++;

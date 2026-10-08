@@ -381,8 +381,9 @@ function approx(a, b, eps, msg) {
   const game = P.createGame(state, {});
   for (let i = 0; i < 2400; i++) game.update(0.05);
   const zone = state.zones.apartment;
-  // каждая победа поднимает волну ещё на 1, пока следующая проходима
-  assert(zone.wave - 1 > state.stats.wavesCleared, "авто-фарм: эскалация на проходимую волну");
+  // v3.6: каждая победа поднимает волну ровно на 1 — волна-босс (20-я)
+  // не перепрыгивается, zoneClear срабатывает
+  assert(zone.wave - 1 === state.stats.wavesCleared, "авто-фарм: волна растёт ровно +1 за победу");
   assert(zone.maxWave === zone.wave, "maxWave следует за эскалацией");
 }
 
