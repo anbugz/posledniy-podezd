@@ -365,6 +365,7 @@ canvas {
 .modal-btn:hover { background: #28304a; }
 #offline-body ul { list-style: none; margin-bottom: 10px; }
 #offline-body li { font-size: 13px; padding: 3px 0; }
+.reset-note { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
 
 /* редкости предметов */
 .r-common { border-color: #8a86a0 !important; }

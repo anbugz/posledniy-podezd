@@ -38,6 +38,21 @@
     panel.refresh();
     if (loaded.report) panel.showOffline(loaded.report);
 
+    // экран «Прогресс сброшен» после перезагрузки по кнопке сброса
+    try {
+      if (sessionStorage.getItem("podezd_reset_flash")) {
+        sessionStorage.removeItem("podezd_reset_flash");
+        const rs = document.getElementById("reset-screen");
+        if (rs) {
+          rs.classList.add("visible");
+          const hide = () => rs.classList.remove("visible");
+          document.getElementById("reset-ok").addEventListener("click", hide);
+          rs.addEventListener("click", (e) => { if (e.target === rs) hide(); });
+          setTimeout(hide, 4000);
+        }
+      }
+    } catch (e) {}
+
     // dev: ?ff=СЕКУНДЫ — синхронный fast-forward до первого кадра (снимки/проверки)
     // dev: ?screen=base — открыть экран Базы; ?modal=inv|char — открыть модалку
     if (typeof location !== "undefined") {
@@ -79,6 +94,7 @@
         window.__podezdReset = true;
         P.storage.removeItem(P.SAVE_KEY);
         for (const k of P.OLD_SAVE_KEYS || []) P.storage.removeItem(k);
+        try { sessionStorage.setItem("podezd_reset_flash", "1"); } catch (e) {}
         location.reload();
       });
     }
