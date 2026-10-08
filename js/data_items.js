@@ -32,9 +32,11 @@
     }
   };
 
-  /* Пути к сгенерированным PNG-иконкам (v3.3). Дублирует логику эмодзи выше. */
+  /* Пути к сгенерированным PNG-иконкам (v3.3). v3.7: у предмета есть своё поле
+     icon — берём его; для старых сейвов — fallback по слоту/семейству. */
   P.slotIconImg = function (item) {
     if (!item) return null;
+    if (item.icon) return "img/icons/" + item.icon + ".png";
     switch (item.slot) {
       case "weapon": {
         const f = P.weaponFamily(item);
@@ -91,6 +93,15 @@
     accessory: ["Часы «Слава»", "Кухонный таймер", "Рация из подвала", "Сковорода на верёвочке"],
   };
   const WEAPON_FAMILIES = ["knife", "bat", "gun", "rifle"];
+  // иконки — параллельно пулам NAMES (тот же индекс = та же вещь) — v3.7
+  const ICONS = {
+    weapon: ["icon_knife", "icon_bat", "icon_gun", "icon_rifle"],
+    helmet: ["icon_helmet", "icon_helmet", "icon_helmet"],
+    armor:  ["icon_armor", "icon_armor", "icon_armor"],
+    gloves: ["icon_gloves", "icon_gloves", "icon_gloves"],
+    boots:  ["icon_boots", "icon_boots", "icon_boots"],
+    accessory: ["icon_watch", "icon_timer", "icon_radio", "icon_pan"],
+  };
 
   /* Семейство оружия: из item.family, для старых сейвов — по силе. */
   P.weaponFamily = function (item) {
@@ -102,6 +113,12 @@
   P.itemName = function (slot, tier) {
     const pool = NAMES[slot] || ["Предмет"];
     return pool[Math.floor(Math.random() * pool.length)];
+  };
+
+  /* Индекс названия/иконки в пуле слота — v3.7 (имя и иконка всегда в паре). */
+  P.itemNameIdx = function (slot, rng) {
+    const pool = NAMES[slot] || ["Предмет"];
+    return Math.floor((rng || Math.random)() * pool.length);
   };
 
   /* Генерация предмета.
@@ -153,12 +170,12 @@
       affixes.push(pool.splice(idx, 1)[0].id);
     }
 
-    const item = { slot, rarity, tier, name: P.itemName(slot, tier), stats, affixes, lvl: 0 };
+    // имя и иконка — одной парой из пула (v3.7: иконка строго соответствует названию)
+    const namePool = NAMES[slot] || ["Предмет"];
+    const idx = P.itemNameIdx(slot, rng);
+    const item = { slot, rarity, tier, name: namePool[idx], icon: (ICONS[slot] || [])[idx] || null, stats, affixes, lvl: 0 };
     // оружие: семейство по названию (нож/бита/дробовик/ружьё) — задаёт анимацию атаки
-    if (slot === "weapon") {
-      const idx = NAMES.weapon.indexOf(item.name);
-      if (idx >= 0) item.family = WEAPON_FAMILIES[idx];
-    }
+    if (slot === "weapon") item.family = WEAPON_FAMILIES[idx];
     return item;
   };
 
@@ -191,11 +208,11 @@
   /* Стартовый набор героя (квартира, тир 1) */
   P.startingEquipment = function () {
     return {
-      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", family: "knife", stats: { dps: 6 }, affixes: [], lvl: 0 },
+      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", family: "knife", icon: "icon_knife", stats: { dps: 6 }, affixes: [], lvl: 0 },
       helmet: null,
-      armor:  { slot: "armor", rarity: "common", tier: 1, name: "Куртка «аляска»", stats: { hp: 10, armor: 5 }, affixes: [], lvl: 0 },
+      armor:  { slot: "armor", rarity: "common", tier: 1, name: "Куртка «аляска»", icon: "icon_armor", stats: { hp: 10, armor: 5 }, affixes: [], lvl: 0 },
       gloves: null,
-      boots:  { slot: "boots", rarity: "common", tier: 1, name: "Кроссовки «марафон»", stats: { hp: 10 }, affixes: [], lvl: 0 },
+      boots:  { slot: "boots", rarity: "common", tier: 1, name: "Кроссовки «марафон»", icon: "icon_boots", stats: { hp: 10 }, affixes: [], lvl: 0 },
       accessory: null,
     };
   };
