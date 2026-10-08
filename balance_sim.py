@@ -3,7 +3,7 @@
 
 Зеркалит формулы из js/ (data_enemies.js, engine_stats.js, engine_loot.js)
 после правок v2:
-  - враги: HP = 30·1.15ⁿ·2^z·0.75 ; после 20 волн круги ×1.30
+  - враги: HP = 30·1.125ⁿ·2^z·0.75 ; после 20 волн круги ×1.30
   - пассивного дохода НЕТ: припасы = floor(10·1.28ⁿ) с волн + продажи
   - сила героя = предметы + «Самоделки» (str/vit/def/acc, 15·1.35^L,
     потолок 2×уровень квартиры) + апгрейд квартиры (25·1.6^L, +20 HP)
@@ -26,7 +26,7 @@ CRIT_CHANCE = 0.05
 CRIT_MULT = 2.0
 
 # враги: HP = E_HP_BASE * 1.15^n * tier^z * 0.75 ; круги ×1.30
-E_HP_BASE, E_HP_GROW, E_HP_TIER, E_HP_GLOBAL = 30.0, 1.15, 2.0, 0.75
+E_HP_BASE, E_HP_GROW, E_HP_TIER, E_HP_GLOBAL = 30.0, 1.125, 2.0, 0.75
 E_DPS_BASE, E_DPS_GROW, E_DPS_TIER = 2.4, 1.14, 1.8
 E_LOOP_MULT = 1.30
 ELITE_EVERY = 5          # каждая 5-я (не босс): HP x2.5, DPS x1.3
