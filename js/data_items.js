@@ -19,8 +19,10 @@
   P.slotIcon = function (item) {
     if (!item) return "▫️";
     switch (item.slot) {
-      case "weapon":
-        return item.stats.dps >= 15 ? "🔫" : item.stats.dps >= 9 ? "🏏" : "🔪";
+      case "weapon": {
+        const f = P.weaponFamily(item);
+        return f === "gun" || f === "rifle" ? "🔫" : f === "bat" ? "🏏" : "🔪";
+      }
       case "helmet": return "🪖";
       case "armor": return "🧥";
       case "gloves": return "🧤";
@@ -34,8 +36,10 @@
   P.slotIconImg = function (item) {
     if (!item) return null;
     switch (item.slot) {
-      case "weapon":
-        return item.stats.dps >= 15 ? "img/icons/icon_gun.png" : item.stats.dps >= 9 ? "img/icons/icon_bat.png" : "img/icons/icon_knife.png";
+      case "weapon": {
+        const f = P.weaponFamily(item);
+        return f === "gun" || f === "rifle" ? "img/icons/icon_gun.png" : f === "bat" ? "img/icons/icon_bat.png" : "img/icons/icon_knife.png";
+      }
       case "helmet": return "img/icons/icon_helmet.png";
       case "armor": return "img/icons/icon_armor.png";
       case "gloves": return "img/icons/icon_gloves.png";
@@ -77,6 +81,7 @@
   const TIER_MULT = 1.8;
 
   // пулы названий по слотам для тира 1 (квартира) — бытовуха
+  // оружие: порядок = семейство (нож/бита/дробовик/ружьё) — v3.5
   const NAMES = {
     weapon: ["Кухонный нож", "Бита с гвоздями", "Самодельный дробовик", "Охотничье ружьё"],
     helmet: ["Зимняя шапка", "Каска соседа", "Шапка-ушанка с фольгой"],
@@ -84,6 +89,14 @@
     gloves: ["Рабочие перчатки", "Хозяйственные резиновые", "Мотоперчатки"],
     boots:  ["Кроссовки «марафон»", "Валенки", "Ботинки с металлическим носком"],
     accessory: ["Часы «Слава»", "Кухонный таймер", "Рация из подвала", "Сковорода на верёвочке"],
+  };
+  const WEAPON_FAMILIES = ["knife", "bat", "gun", "rifle"];
+
+  /* Семейство оружия: из item.family, для старых сейвов — по силе. */
+  P.weaponFamily = function (item) {
+    if (!item || item.slot !== "weapon") return null;
+    if (item.family) return item.family;
+    return item.stats.dps >= 15 ? "gun" : item.stats.dps >= 9 ? "bat" : "knife";
   };
 
   P.itemName = function (slot, tier) {
@@ -140,7 +153,13 @@
       affixes.push(pool.splice(idx, 1)[0].id);
     }
 
-    return { slot, rarity, tier, name: P.itemName(slot, tier), stats, affixes, lvl: 0 };
+    const item = { slot, rarity, tier, name: P.itemName(slot, tier), stats, affixes, lvl: 0 };
+    // оружие: семейство по названию (нож/бита/дробовик/ружьё) — задаёт анимацию атаки
+    if (slot === "weapon") {
+      const idx = NAMES.weapon.indexOf(item.name);
+      if (idx >= 0) item.family = WEAPON_FAMILIES[idx];
+    }
+    return item;
   };
 
   /* Прокачка предмета: +15% к статам за уровень (правки v2). */
@@ -172,7 +191,7 @@
   /* Стартовый набор героя (квартира, тир 1) */
   P.startingEquipment = function () {
     return {
-      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", stats: { dps: 6 }, affixes: [], lvl: 0 },
+      weapon: { slot: "weapon", rarity: "common", tier: 1, name: "Кухонный нож", family: "knife", stats: { dps: 6 }, affixes: [], lvl: 0 },
       helmet: null,
       armor:  { slot: "armor", rarity: "common", tier: 1, name: "Куртка «аляска»", stats: { hp: 10, armor: 5 }, affixes: [], lvl: 0 },
       gloves: null,

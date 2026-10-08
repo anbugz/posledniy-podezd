@@ -50,8 +50,24 @@
 
     const floaters = [];   // {x, y, text, color, life}
     const flashes = [];    // вспышки выстрелов {x, y, life}
+    const particles = [];  // искры/осколки {x, y, vx, vy, color, life}
+    const tracers = [];    // трассеры выстрелов {x1, y1, x2, y2, life}
+    let shakeAt = -999, shakeMag = 0; // тряска экрана (крит, смерть босса)
     let enemyAnimHit = 0;
     let lastTickHadEnemy = false;
+
+    function spawnParticles(x, y, color, n, spread) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = (0.4 + Math.random() * 1.2) * (spread || 1);
+        particles.push({
+          x, y,
+          vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.6,
+          color, life: 18 + Math.random() * 10,
+        });
+      }
+    }
+    function shake(mag) { shakeAt = lastT; shakeMag = mag; }
 
     /* Анимация, привязанная к реальным событиям боя (t — кадры из render).
        Длительности в единицах t (20 ед. ≈ 1 с): замах 5, урон-вспышка 6,
@@ -304,7 +320,10 @@
       // замах: рывок к врагу 0.25 с; получение урона: откат+тряска 0.3 с
       const atkP = (lastT - heroAtkAt) / 5;
       const hurtP = (lastT - heroHurtAt) / 6;
-      const lunge = atkP <= 1 ? swing(atkP) * 18 : 0;
+      const fam = P.weaponFamily(state.equipment.weapon) || "knife";
+      const isGun = fam === "gun" || fam === "rifle";
+      // замах: холодное — рывок к врагу; стрелковое — отдача назад
+      const lunge = atkP <= 1 ? swing(atkP) * (isGun ? -7 : fam === "bat" ? 24 : 18) : 0;
       const hurtShake = hurtP <= 1 ? (Math.random() - 0.5) * 5 - swing(hurtP) * 8 : 0;
       const x = HERO_X + lunge + hurtShake, y = FLOOR_Y + bob * 0;
       const dead = game.combat.phase === "knockout";
@@ -315,13 +334,14 @@
         ctx.globalAlpha = alpha;
         ctx.drawImage(ART.hero, x - 34, y - 80, 68, 80);
         ctx.globalAlpha = 1;
-        // дуга замаха в момент удара
-        if (atkP <= 1) {
+        // дуга замаха в момент удара (только холодное; стрелковое — трассер)
+        if (atkP <= 1 && !isGun) {
           ctx.globalAlpha = (1 - atkP) * 0.9;
           ctx.strokeStyle = "#e8e4f0";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = fam === "bat" ? 3 : 2;
+          const r = fam === "bat" ? 26 : 20;
           ctx.beginPath();
-          ctx.arc(x + 30, y - 44, 20, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
+          ctx.arc(x + 30, y - 44, r, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
           ctx.stroke();
           ctx.lineWidth = 1;
           ctx.globalAlpha = 1;
@@ -385,13 +405,14 @@
       ctx.fillStyle = PAL.heroHp;
       ctx.fillRect(x - 19, y - 71, Math.round(38 * hpPct), 3);
 
-      // дуга замаха в момент удара
-      if (atkP <= 1) {
+      // дуга замаха в момент удара (только холодное; стрелковое — трассер)
+      if (atkP <= 1 && !isGun) {
         ctx.globalAlpha = (1 - atkP) * 0.9;
         ctx.strokeStyle = "#e8e4f0";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = fam === "bat" ? 3 : 2;
+        const r = fam === "bat" ? 22 : 16;
         ctx.beginPath();
-        ctx.arc(x + 26, y - 46, 16, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
+        ctx.arc(x + 26, y - 46, r, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
         ctx.stroke();
         ctx.lineWidth = 1;
         ctx.globalAlpha = 1;
@@ -511,6 +532,31 @@
     }
 
     function drawFloatersAndFlashes() {
+      // трассеры выстрелов
+      for (let i = tracers.length - 1; i >= 0; i--) {
+        const tr = tracers[i];
+        tr.life--;
+        if (tr.life <= 0) { tracers.splice(i, 1); continue; }
+        ctx.globalAlpha = tr.life / 4;
+        ctx.strokeStyle = "#ffe87d";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(tr.x1, tr.y1);
+        ctx.lineTo(tr.x2, tr.y2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+      ctx.globalAlpha = 1;
+      // искры/осколки с гравитацией
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.globalAlpha = Math.min(1, p.life / 14);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 2, 2);
+      }
+      ctx.globalAlpha = 1;
       ctx.font = "9px monospace";
       ctx.textAlign = "center";
       for (let i = floaters.length - 1; i >= 0; i--) {
@@ -562,21 +608,36 @@
       /* вызывать из главного цикла */
       render(t) {
         lastT = t;
+        // тряска экрана (крит / смерть босса): сдвиг всей сцены, статус не трясём
+        const shakeP = (t - shakeAt) / 5;
+        const shaking = shakeP <= 1;
+        if (shaking) {
+          ctx.save();
+          const m = shakeMag * (1 - shakeP);
+          ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
+        }
         drawRoom(t);
         drawHero(t);
         drawEnemy(t);
         drawFloatersAndFlashes();
+        if (shaking) ctx.restore();
         drawStatus(t);
         if (enemyAnimHit > 0) enemyAnimHit--;
         lastTickHadEnemy = !!(game.combat.phase === "fight" && game.combat.enemy);
       },
-      /* реальный удар героя: всплывающий урон по врагу + замах + тряска/вспышка */
+      /* реальный удар героя: урон по врагу + анимация по семейству оружия */
       heroHit(ev) {
         const dmg = Math.max(1, Math.round(ev.dmg));
         addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
-        if (state.equipment.weapon && state.equipment.weapon.stats.dps >= 15) {
-          flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: 8 });
+        const fam = P.weaponFamily(state.equipment.weapon) || "knife";
+        if (fam === "gun" || fam === "rifle") {
+          // выстрел: вспышка у ствола + трассер до врага
+          flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: fam === "rifle" ? 10 : 8 });
+          tracers.push({ x1: HERO_X + 36, y1: FLOOR_Y - 42, x2: ENEMY_X - 20, y2: FLOOR_Y - 52, life: 4 });
         }
+        // искры при попадании; крит — больше и с тряской экрана
+        spawnParticles(ENEMY_X - 10, FLOOR_Y - 60, ev.crit ? "#ffe87d" : "#c0c8d8", ev.crit ? 9 : 4, ev.crit ? 1.6 : 1);
+        if (ev.crit) shake(4);
         heroAtkAt = lastT;
         enemyAnimHit = 4;
       },
@@ -584,15 +645,19 @@
       enemyHit(ev) {
         const dmg = Math.max(1, Math.round(ev.dmg));
         addFloater(HERO_X + (Math.random() - 0.5) * 16, FLOOR_Y - 96, "-" + dmg, "#e85e5e");
+        spawnParticles(HERO_X + 8, FLOOR_Y - 60, "#e85e5e", 3, 0.8);
         enemyAtkAt = lastT;
         heroHurtAt = lastT;
       },
       /* враг появился — анимация въезда справа */
       waveStart() { enemySpawnAt = lastT; },
-      /* враг убит — анимация падения (снапшот внешности) */
+      /* враг убит — взрыв частиц + падение; босс — тряска экрана */
       waveWin(ev) {
         const kind = ev.enemy ? ev.enemy.kind : "grunt";
         dyingEnemy = { kind, zoneId: ev.zoneId || state.activeZone, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
+        const col = kind === "boss" ? "#c0c8d8" : kind === "elite" ? "#9a5ad0" : "#7a9a4d";
+        spawnParticles(ENEMY_X, FLOOR_Y - 50, col, kind === "boss" ? 20 : 12, 1.8);
+        if (kind === "boss") shake(6);
       },
       addFloater,
     };
