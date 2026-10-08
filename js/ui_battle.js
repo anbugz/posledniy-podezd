@@ -28,7 +28,20 @@
   loadArt("hero", "img/sprites/hero.png");
   loadArt("drone", "img/sprites/enemy_drone.png");
   loadArt("brute", "img/sprites/enemy_brute.png");
+  // v3.4: у каждой зоны свой враг и свой босс
+  for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
+    loadArt(z + "_grunt", "img/sprites/" + z + "_grunt.png");
+    loadArt(z + "_boss", "img/sprites/" + z + "_boss.png");
+  }
   const artReady = (im) => im && im.complete && im.naturalWidth > 0;
+  /* Спрайт врага: зона + тип (босс/грунт), с откатом на старые спрайты. */
+  function enemyArt(zoneId, kind) {
+    const boss = kind === "boss";
+    const z = ART[zoneId + "_" + (boss ? "boss" : "grunt")];
+    if (artReady(z)) return z;
+    const legacy = ART[boss ? "brute" : "drone"];
+    return artReady(legacy) ? legacy : null;
+  }
 
   P.initBattleView = function (game, canvas) {
     const ctx = canvas.getContext("2d");
@@ -406,11 +419,12 @@
       const spawnAlpha = spawnP <= 1 ? 0.3 + 0.7 * spawnP : 1;
       ctx.globalAlpha = spawnAlpha;
 
-      // сгенерированные спрайты: босс — тяжёлый, остальные — дрон
-      const eArt = ART[e.kind === "boss" ? "brute" : "drone"];
-      if (artReady(eArt)) {
+      // спрайт врага зоны (пропорции сохраняем, якорь — низ по центру)
+      const eArt = enemyArt(state.activeZone || "apartment", e.kind);
+      if (eArt) {
         const h = e.kind === "boss" ? 118 : e.kind === "elite" ? 92 : 70;
-        ctx.drawImage(eArt, x - h / 2 + shake, FLOOR_Y - h + bob * 0.3, h, h);
+        const w = Math.round(h * (eArt.naturalWidth / eArt.naturalHeight));
+        ctx.drawImage(eArt, x - w / 2 + shake, FLOOR_Y - h + bob * 0.3, w, h);
       } else if (e.kind === "boss") {
         // дрон-носильщик: корпус + ротор + мигалка
         ctx.fillStyle = PAL.bossDrone;
@@ -485,9 +499,10 @@
       ctx.globalAlpha = alpha;
       ctx.translate(x, FLOOR_Y - h / 2 + drop);
       ctx.rotate(tilt);
-      const eArt = ART[dyingEnemy.kind === "boss" ? "brute" : "drone"];
-      if (artReady(eArt)) {
-        ctx.drawImage(eArt, -h / 2, -h / 2, h, h);
+      const eArt = enemyArt(dyingEnemy.zoneId, dyingEnemy.kind);
+      if (eArt) {
+        const w = Math.round(h * (eArt.naturalWidth / eArt.naturalHeight));
+        ctx.drawImage(eArt, -w / 2, -h / 2, w, h);
       } else {
         ctx.fillStyle = dyingEnemy.kind === "boss" ? PAL.bossDrone : dyingEnemy.kind === "elite" ? PAL.bugElite : PAL.bug;
         ctx.fillRect(-h / 3, -h / 3, h * 0.66, h * 0.5);
@@ -577,7 +592,7 @@
       /* враг убит — анимация падения (снапшот внешности) */
       waveWin(ev) {
         const kind = ev.enemy ? ev.enemy.kind : "grunt";
-        dyingEnemy = { kind, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
+        dyingEnemy = { kind, zoneId: ev.zoneId || state.activeZone, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
       },
       addFloater,
     };

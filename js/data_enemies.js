@@ -25,7 +25,7 @@
   };
 
   // Волна n (абсолютная) в зоне тира z -> {hp, dps, kind, name, cycle}
-  P.enemyStats = function (n, z, cap) {
+  P.enemyStats = function (n, z, cap, zoneId) {
     const E = P.ENEMY;
     const c = P.waveCycle(n, cap);
     const loopMult = Math.pow(P.CONFIG.WAVE_LOOP_MULT, c.cycle);
@@ -37,15 +37,22 @@
     } else if (c.nEff % E.eliteEvery === 0) {
       hp *= E.eliteHp; dps *= E.eliteDps; kind = "elite";
     }
-    return { hp: Math.floor(hp), dps, kind, name: P.enemyName(c.nEff, kind), cycle: c.cycle };
+    return { hp: Math.floor(hp), dps, kind, name: P.enemyName(c.nEff, kind, zoneId), cycle: c.cycle };
   };
 
-  P.enemyName = function (n, kind) {
-    if (kind === "boss") {
-      return n % 20 === 0 ? "Дрон-носильщик" : "Штурмовой дрон";
-    }
-    if (kind === "elite") return "Элитный жук-поглотитель";
-    const names = ["Жук-разведчик", "Дрон-сверчок", "Паучок-дезориентатор", "Жук-тихоход"];
-    return names[n % names.length];
+  // v3.4: у каждой зоны свой бестиарий
+  const ZONE_NAMES = {
+    apartment: { grunt: ["Жук-разведчик", "Дрон-сверчок", "Паучок-дезориентатор", "Жук-тихоход"], elite: "Элитный жук-поглотитель", boss: ["Штурмовой дрон", "Дрон-носильщик"] },
+    entrance:  { grunt: ["Сверчок подъезда", "Жук-лазутчик", "Паук-навесник", "Дрон-шпион"], elite: "Элитный страж лестницы", boss: ["Лифтовой страж", "Дрон-домофон"] },
+    yard:      { grunt: ["Паук-скакун", "Жук-копатель", "Овод-разведчик", "Гусеница-пепельник"], elite: "Элитный паук-караульный", boss: ["Матка пауков", "Дворовый владыка"] },
+    house:     { grunt: ["Подвальный слизень", "Жук-трубогрыз", "Плесень-ползун", "Таракан-огрызок"], elite: "Элитный котельный жук", boss: ["Котельный голем", "Страж подвала"] },
+    district:  { grunt: ["Дрон-коршун", "Жук-штурмовик", "Паук-дальнобой", "Осадный сверчок"], elite: "Элитный дрон-охотник", boss: ["Дрон-носильщик", "Небесный каратель"] },
+  };
+
+  P.enemyName = function (n, kind, zoneId) {
+    const z = ZONE_NAMES[zoneId] || ZONE_NAMES.apartment;
+    if (kind === "boss") return z.boss[n % 2];
+    if (kind === "elite") return z.elite;
+    return z.grunt[n % z.grunt.length];
   };
 })(typeof PODEZD !== "undefined" ? PODEZD : (global.PODEZD = {}));

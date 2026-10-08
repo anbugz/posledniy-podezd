@@ -34,7 +34,7 @@
 
     function startWave() {
       const n = zone.wave;
-      combat.enemy = P.enemyStats(n, zdef.tier, zdef.wavesCap);
+      combat.enemy = P.enemyStats(n, zdef.tier, zdef.wavesCap, zoneId);
       combat.enemy.maxHp = combat.enemy.hp;
       combat.phase = "fight";
       combat.elapsed = 0;
