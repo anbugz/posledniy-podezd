@@ -12,6 +12,7 @@
           const hero = P.calcHero(state);
           const sup = Math.floor(P.waveSupplies(ev.wave) * hero.supMult);
           battleView.addFloater(350, 150, "+" + sup + " 🥫", "#5ee87d");
+          battleView.waveWin(ev);
           panel.refresh();
         }
       },
@@ -23,10 +24,11 @@
         panel && panel.renderBase();
       },
       onEvent(ev) {
-        // реальные размахи боя -> всплывающие цифры урона
+        // реальные события боя -> анимации и всплывающие цифры
         if (!battleView) return;
         if (ev.type === "heroHit") battleView.heroHit(ev);
         else if (ev.type === "enemyHit") battleView.enemyHit(ev);
+        else if (ev.type === "waveStart") battleView.waveStart(ev);
       },
     });
 

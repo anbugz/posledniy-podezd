@@ -40,6 +40,15 @@
     let enemyAnimHit = 0;
     let lastTickHadEnemy = false;
 
+    /* Анимация, привязанная к реальным событиям боя (t — кадры из render).
+       Длительности в единицах t (20 ед. ≈ 1 с): замах 5, урон-вспышка 6,
+       наскок врага 8, появление 8, падение 10. */
+    let lastT = 0;
+    let heroAtkAt = -999, heroHurtAt = -999;
+    let enemyAtkAt = -999, enemySpawnAt = -999, enemyDeadAt = -999;
+    const easeOut = (p) => 1 - (1 - p) * (1 - p);
+    const swing = (p) => Math.sin(Math.min(Math.max(p, 0), 1) * Math.PI); // 0→1→0
+
     function addFloater(x, y, text, color) {
       floaters.push({ x, y, text, color: color || "#fff", life: 55 });
     }
@@ -279,7 +288,12 @@
     function drawHero(t) {
       const hero = P.calcHero(state);
       const bob = Math.sin(t / 10) * 1.5;
-      const x = HERO_X, y = FLOOR_Y + bob * 0;
+      // замах: рывок к врагу 0.25 с; получение урона: откат+тряска 0.3 с
+      const atkP = (lastT - heroAtkAt) / 5;
+      const hurtP = (lastT - heroHurtAt) / 6;
+      const lunge = atkP <= 1 ? swing(atkP) * 18 : 0;
+      const hurtShake = hurtP <= 1 ? (Math.random() - 0.5) * 5 - swing(hurtP) * 8 : 0;
+      const x = HERO_X + lunge + hurtShake, y = FLOOR_Y + bob * 0;
       const dead = game.combat.phase === "knockout";
       const alpha = dead ? 0.4 + 0.2 * Math.sin(t / 4) : 1;
 
@@ -288,6 +302,17 @@
         ctx.globalAlpha = alpha;
         ctx.drawImage(ART.hero, x - 34, y - 80, 68, 80);
         ctx.globalAlpha = 1;
+        // дуга замаха в момент удара
+        if (atkP <= 1) {
+          ctx.globalAlpha = (1 - atkP) * 0.9;
+          ctx.strokeStyle = "#e8e4f0";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + 30, y - 44, 20, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
+          ctx.stroke();
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 1;
+        }
         const hpPct = Math.max(0, state.hero.hp / hero.hpMax);
         ctx.fillStyle = "#000";
         ctx.fillRect(x - 20, y - 92, 40, 5);
@@ -347,6 +372,18 @@
       ctx.fillStyle = PAL.heroHp;
       ctx.fillRect(x - 19, y - 71, Math.round(38 * hpPct), 3);
 
+      // дуга замаха в момент удара
+      if (atkP <= 1) {
+        ctx.globalAlpha = (1 - atkP) * 0.9;
+        ctx.strokeStyle = "#e8e4f0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x + 26, y - 46, 16, -1.2 + atkP * 2.2, 0.4 + atkP * 2.2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 1;
+      }
+
       if (dead) {
         ctx.fillStyle = PAL.text;
         ctx.font = "8px monospace";
@@ -357,10 +394,17 @@
 
     function drawEnemy(t) {
       const e = game.combat.enemy;
-      if (!e) return;
-      const x = ENEMY_X, y = FLOOR_Y;
+      if (!e) { drawDying(t); return; }
+      // появление: въезжает справа за 0.4 с; атака: наскок к герою 0.4 с
+      const spawnP = (lastT - enemySpawnAt) / 8;
+      const atkP = (lastT - enemyAtkAt) / 8;
+      const slideIn = spawnP <= 1 ? (1 - easeOut(spawnP)) * 70 : 0;
+      const lunge = atkP <= 1 ? swing(atkP) * 20 : 0;
+      const x = ENEMY_X + slideIn - lunge, y = FLOOR_Y;
       const shake = enemyAnimHit > 0 ? (Math.random() - 0.5) * 3 : 0;
       const bob = Math.sin(t / 7 + 2) * 2;
+      const spawnAlpha = spawnP <= 1 ? 0.3 + 0.7 * spawnP : 1;
+      ctx.globalAlpha = spawnAlpha;
 
       // сгенерированные спрайты: босс — тяжёлый, остальные — дрон
       const eArt = ART[e.kind === "boss" ? "brute" : "drone"];
@@ -424,6 +468,31 @@
       ctx.fillRect(x - lw / 2 - 4, y - 110, lw + 8, 12);
       ctx.fillStyle = PAL.text;
       ctx.fillText(label, x, y - 101);
+      ctx.globalAlpha = 1;
+    }
+
+    /* Падение убитого врага: снапшот из waveWin, 0.5 с — крен + уход вниз + затухание. */
+    let dyingEnemy = null; // {kind, h, at}
+    function drawDying(t) {
+      if (!dyingEnemy) return;
+      const p = (lastT - dyingEnemy.at) / 10;
+      if (p > 1) { dyingEnemy = null; return; }
+      const x = ENEMY_X, h = dyingEnemy.h;
+      const alpha = 1 - p;
+      const drop = p * p * 26;
+      const tilt = p * 0.5; // радианы крена
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, FLOOR_Y - h / 2 + drop);
+      ctx.rotate(tilt);
+      const eArt = ART[dyingEnemy.kind === "boss" ? "brute" : "drone"];
+      if (artReady(eArt)) {
+        ctx.drawImage(eArt, -h / 2, -h / 2, h, h);
+      } else {
+        ctx.fillStyle = dyingEnemy.kind === "boss" ? PAL.bossDrone : dyingEnemy.kind === "elite" ? PAL.bugElite : PAL.bug;
+        ctx.fillRect(-h / 3, -h / 3, h * 0.66, h * 0.5);
+      }
+      ctx.restore();
     }
 
     function drawFloatersAndFlashes() {
@@ -477,6 +546,7 @@
     const view = {
       /* вызывать из главного цикла */
       render(t) {
+        lastT = t;
         drawRoom(t);
         drawHero(t);
         drawEnemy(t);
@@ -485,19 +555,29 @@
         if (enemyAnimHit > 0) enemyAnimHit--;
         lastTickHadEnemy = !!(game.combat.phase === "fight" && game.combat.enemy);
       },
-      /* реальный удар героя: всплывающий урон по врагу + тряска/вспышка */
+      /* реальный удар героя: всплывающий урон по врагу + замах + тряска/вспышка */
       heroHit(ev) {
         const dmg = Math.max(1, Math.round(ev.dmg));
         addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
         if (state.equipment.weapon && state.equipment.weapon.stats.dps >= 15) {
           flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: 8 });
         }
+        heroAtkAt = lastT;
         enemyAnimHit = 4;
       },
-      /* реальный удар врага: красный урон над героем */
+      /* реальный удар врага: красный урон над героем + наскок врага + откат героя */
       enemyHit(ev) {
         const dmg = Math.max(1, Math.round(ev.dmg));
         addFloater(HERO_X + (Math.random() - 0.5) * 16, FLOOR_Y - 96, "-" + dmg, "#e85e5e");
+        enemyAtkAt = lastT;
+        heroHurtAt = lastT;
+      },
+      /* враг появился — анимация въезда справа */
+      waveStart() { enemySpawnAt = lastT; },
+      /* враг убит — анимация падения (снапшот внешности) */
+      waveWin(ev) {
+        const kind = ev.enemy ? ev.enemy.kind : "grunt";
+        dyingEnemy = { kind, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
       },
       addFloater,
     };
