@@ -113,7 +113,8 @@
       invDetail: $("inv-detail"), equipBest: $("equipBest"),
       autoSellSel: $("autoSellSel"), autoSellOn: $("autoSellOn"), sellBelow: $("sellBelow"),
       doll: $("doll"), dollScore: $("doll-score"), dollStats: $("doll-stats"),
-      trainingSection: $("training-section"), veteranNote: $("veteran-note"),
+      trainingSection: $("training-section"),
+      snackBtn: $("snackBtn"), expVal: $("expVal"),
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"), tooltip: $("tooltip"),
     };
@@ -170,7 +171,6 @@
 
     /* ---------- экраны ---------- */
     function showScreen(which) {
-      if (which === "base" && !state.hubUnlocked) return; // база — после зачистки Дома
       el.screenBattle.classList.toggle("hidden", which !== "battle");
       el.screenBase.classList.toggle("hidden", which !== "base");
       el.tabBattle.classList.toggle("active", which === "battle");
@@ -345,6 +345,14 @@
       refresh();
     });
 
+    /* ---------- перекус (v4.0): +15% HP / +10% DPS на 5 мин за припасы ---------- */
+    el.snackBtn.addEventListener("click", () => {
+      if (P.buySnack(state)) {
+        battleView.addFloater(240, 120, "🍖 Перекус: +15% HP, +10% DPS", "#e8b45e");
+        refresh();
+      }
+    });
+
     /* ---------- навыки ---------- */
     const skillBtns = {};
     for (const id of Object.keys(P.SKILLS)) {
@@ -444,12 +452,14 @@
             }
           });
           btns.appendChild(bOff);
-          if (state.upgradesUnlocked) {
+          // улучшение за технологии, с 1-й минуты; выше +5 — после Оружейника
+          {
             const bUpg = document.createElement("button");
             bUpg.className = "b-upg";
             const cost = P.itemUpgradeCost(item);
-            bUpg.textContent = "Улучшить — " + fmt(cost);
-            bUpg.disabled = state.supplies < cost;
+            const capped = (item.lvl || 0) >= P.UPGRADE_SOFT_CAP && !state.upgradesUnlocked;
+            bUpg.textContent = capped ? "Предел +5 (нужен Оружейник)" : "Улучшить — " + fmt(cost) + " 🔧";
+            bUpg.disabled = capped || state.tech < cost;
             bUpg.addEventListener("click", () => {
               if (P.upgradeItem(state, "equip", selectedEquip)) {
                 forceHeavy = true;
@@ -512,13 +522,14 @@
       });
       btns.appendChild(bWear);
       btns.appendChild(bSell);
-      // улучшение предметов — только после зачистки Района (Оружейник)
-      if (state.upgradesUnlocked) {
+      // улучшение за технологии, с 1-й минуты; выше +5 — после Оружейника
+      {
         const bUpg = document.createElement("button");
         bUpg.className = "b-upg";
         const cost = P.itemUpgradeCost(item);
-        bUpg.textContent = "Улучшить — " + fmt(cost);
-        bUpg.disabled = state.supplies < cost;
+        const capped = (item.lvl || 0) >= P.UPGRADE_SOFT_CAP && !state.upgradesUnlocked;
+        bUpg.textContent = capped ? "Предел +5 (нужен Оружейник)" : "Улучшить — " + fmt(cost) + " 🔧";
+        bUpg.disabled = capped || state.tech < cost;
         bUpg.addEventListener("click", () => {
           if (P.upgradeItem(state, "bag", selectedBagIdx)) {
             forceHeavy = true;
@@ -573,27 +584,14 @@
 
     /* ---------- база / хаб ---------- */
     function renderBase() {
-      // шапка хаба + вкладка доступны только после зачистки Дома
-      el.tabBase.disabled = !state.hubUnlocked;
-      el.tabBase.textContent = state.hubUnlocked ? "🏠 База" : "🏠 База 🔒";
-      if (state.hubUnlocked) {
-        el.hubHead.innerHTML =
-          "<div class='hub-banner'><h2>🏠 БАЗА</h2>" +
-          "<p>Штаб обороны. Отсюда вы отправляетесь в бой: выбирайте фронт, улучшайте квартиру. " +
-          "Всего волн пройдено: <b>" + state.stats.wavesCleared + "</b>, тварей уничтожено: <b>" + state.stats.kills + "</b>.</p></div>";
-      } else {
-        el.hubHead.innerHTML = "";
-      }
-      // «Самоделки» — только после Ветерана (зачистка Двора)
-      el.trainingSection.classList.toggle("hidden", !state.veteranUnlocked);
-      if (!state.veteranUnlocked) {
-        el.veteranNote.innerHTML =
-          "<div class='hub-banner' style='border-color:#5ea8e8'><h2 style='color:#5ea8e8'>🎖 Ветеран появится позже</h2>" +
-          "<p>Обучение «Самоделкам» откроется, когда зачистите <b>Двор</b> (волна " +
-          P.ZONES.yard.wavesCap + "). До этого прокачек нет — только бой, лут и навыки.</p></div>";
-      } else {
-        el.veteranNote.innerHTML = "";
-      }
+      // v4.0: база (квартира + самоделки) доступна с 1-й минуты
+      el.tabBase.disabled = false;
+      el.tabBase.textContent = "🏠 База";
+      el.hubHead.innerHTML =
+        "<div class='hub-banner'><h2>🏠 БАЗА</h2>" +
+        "<p>Ваша квартира — опорный пункт. Улучшайте её за припасы (+20 HP и потолок самоделок за уровень), " +
+        "а очки опыта с волн вкладывайте в самоделки. " +
+        "Волн пройдено: <b>" + state.stats.wavesCleared + "</b>, тварей уничтожено: <b>" + state.stats.kills + "</b>.</p></div>";
       // карточки зон
       el.zoneCards.innerHTML = "";
       for (const zid of P.ZONE_ORDER) {
@@ -638,16 +636,16 @@
         }
         el.zoneCards.appendChild(card);
       }
-      // самоделки
+      // самоделки — за очки опыта (v4.0)
       const cap = P.trainCap(state);
-      el.trainCap.textContent = "потолок параметра: " + cap + " (2× уровень квартиры)";
+      const avail = P.expAvail(state);
+      el.trainCap.textContent = "потолок параметра: " + cap + " (2× уровень квартиры) · очков опыта: " + avail;
       for (const key of Object.keys(P.TRAINING)) {
         const t = state.training[key];
-        const cost = P.trainCost(t);
         const full = t >= cap;
         trainBtns[key].lvl.textContent = "ур. " + t + (full ? " (макс)" : "");
-        trainBtns[key].btn.textContent = full ? "потолок" : "Качать — " + fmt(cost);
-        trainBtns[key].btn.disabled = full || state.supplies < cost;
+        trainBtns[key].btn.textContent = full ? "потолок" : "Вложить очко — ⭐1";
+        trainBtns[key].btn.disabled = full || avail < 1;
       }
     }
 
@@ -692,6 +690,20 @@
       el.supplies.textContent = fmt(Math.floor(state.supplies));
       el.income.textContent = "за волну: " + fmt(Math.floor(P.waveSupplies(zone.wave) * hero.supMult));
       el.tech.textContent = fmt(state.tech);
+      el.expVal.textContent = fmt(P.expAvail(state));
+      // перекус: цена или таймер активного баффа
+      const sCost = P.snackCost(state);
+      const sLeft = Math.max(0, (state.snackUntil || 0) - (state.now || 0));
+      if (sLeft > 0) {
+        el.snackBtn.textContent = "🍖 " + Math.ceil(sLeft) + "с";
+        el.snackBtn.disabled = true;
+        el.snackBtn.classList.add("on");
+      } else {
+        el.snackBtn.textContent = "🍖 " + fmt(sCost);
+        el.snackBtn.disabled = state.supplies < sCost;
+        el.snackBtn.classList.remove("on");
+        el.snackBtn.title = "Перекус: +15% HP и +10% DPS на 5 минут (цена растёт с волной)";
+      }
       el.dps.textContent = fmt(Math.round(hero.dpsEff * 10) / 10);
       el.hp.textContent = fmt(Math.ceil(state.hero.hp)) + "/" + fmt(hero.hpMax);
       el.armor.textContent = Math.round(hero.armor) + " брони";
@@ -761,6 +773,7 @@
       let html = "<p class='loot-title'>Вы отсутствовали " + dur + (report.capped ? " (лимит 12 ч)" : "") + "</p><ul>";
       html += "<li>Припасов добыто: <b>+" + fmt(Math.floor(report.supplies)) + "</b></li>";
       html += "<li>Технологий: <b>+" + fmt(report.tech) + "</b></li>";
+      if (report.exp) html += "<li>Опыта выживания: <b>+" + fmt(report.exp) + "</b> ⭐</li>";
       html += "<li>Волн пройдено: <b>" + (report.wavesFrom) + " → " + report.wavesTo + "</b></li>";
       if (report.items.length) {
         html += "<li>Предметов найдено: <b>" + report.items.length + "</b> (в сумке)</li>";

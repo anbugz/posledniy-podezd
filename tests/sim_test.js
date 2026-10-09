@@ -37,26 +37,27 @@ function approx(a, b, eps, msg) {
   assert(hero.supMult === 1 && hero.regenCombat === 0, "нет аффиксов на старте");
 }
 
-// ---------- «Самоделки» (после Ветерана — зачистка Двора) ----------
+// ---------- «Самоделки» (v4.0: за опыт, с 1-й минуты) ----------
 {
   const state = P.defaultState();
-  state.supplies = 10000;
-  assert(!P.buyTraining(state, "str"), "без Ветерана тренировки закрыты");
-  state.veteranUnlocked = true;
+  state.exp = 100;
   assert(P.trainCap(state) === 2, "потолок = 2× уровень квартиры");
-  assert(P.buyTraining(state, "str"), "покупка Силы");
+  const st0 = P.defaultState();
+  assert(!P.buyTraining(st0, "str"), "без очков опыта качать нельзя");
+  assert(P.buyTraining(state, "str"), "покупка Силы за очко опыта");
   assert(P.buyTraining(state, "str"), "вторая покупка Силы");
   assert(!P.buyTraining(state, "str"), "потолок не пробивается");
+  assert(P.expAvail(state) === 98, "потрачено 2 очка опыта");
   const hero = P.calcHero(state);
-  approx(hero.dps, 6 * 1.16, 0.01, "Сила: +8% DPS за уровень");
+  approx(hero.dps, 6 * 1.24, 0.01, "Сила: +12% DPS за уровень");
   assert(P.buyTraining(state, "vit"), "покупка Выносливости");
-  approx(P.calcHero(state).hpMax, Math.round(140 * 1.1), 0.01, "Выносливость: +10% HP");
+  approx(P.calcHero(state).hpMax, Math.round(140 * 1.12), 0.01, "Выносливость: +12% HP");
   assert(P.buyTraining(state, "def"), "покупка Защиты");
   assert(P.calcHero(state).armor > 5, "Защита: +3 брони");
   assert(P.buyTraining(state, "acc"), "покупка Меткости");
   assert(P.calcHero(state).crit > 0.05, "Меткость: +1.5 п.п. крита");
-  // апгрейд квартиры поднимает потолок (нужен хаб)
-  state.hubUnlocked = true;
+  // апгрейд квартиры поднимает потолок (v4.0: хаб не нужен)
+  state.supplies = 10000;
   P.buyZoneLevel(state, "apartment");
   assert(P.trainCap(state) === 4, "потолок вырос с квартирой");
   assert(P.buyTraining(state, "str"), "Силу можно качать дальше");
@@ -90,25 +91,30 @@ function approx(a, b, eps, msg) {
   }
 }
 
-// ---------- прокачка предмета (после Района — Оружейник) ----------
+// ---------- прокачка предмета (v4.0: за технологии, с 1-й минуты) ----------
 {
   const state = P.defaultState();
-  state.supplies = 10000;
-  assert(!P.upgradeItem(state, "equip", "weapon"), "без Оружейника улучшать нельзя");
-  state.upgradesUnlocked = true;
+  state.tech = 10000;
+  // без Оружейника — улучшать можно, но не выше +5
+  assert(P.upgradeItem(state, "equip", "weapon"), "улучшение доступно сразу (теперь за tech)");
   // эпик: чтобы цена чувствительно росла после ресайла (base 2 мала)
   state.equipment.weapon = P.generateItem("weapon", 1, "epic", Math.random);
   const knife = state.equipment.weapon;
   const dps0 = knife.stats.dps;
   const cost0 = P.itemUpgradeCost(knife);
   assert(cost0 > 0, "цена прокачки положительная");
-  assert(P.upgradeItem(state, "equip", "weapon"), "прокачка надетого оружия");
+  assert(P.upgradeItem(state, "equip", "weapon"), "прокачка надетого оружия за tech");
   approx(knife.stats.dps, Math.round(dps0 * 1.15 * 10) / 10, 0.2, "+15% к статам за уровень");
   assert(knife.lvl === 1, "уровень предмета вырос");
   assert(P.itemUpgradeCost(knife) > cost0, "цена растёт с уровнем");
   const poor = P.defaultState();
-  poor.supplies = 0;
-  assert(!P.upgradeItem(poor, "equip", "weapon"), "без припасов не прокачать");
+  poor.tech = 0;
+  assert(!P.upgradeItem(poor, "equip", "weapon"), "без технологий не прокачать");
+  // софт-кэп +5 без Оружейника
+  knife.lvl = 5;
+  assert(!P.upgradeItem(state, "equip", "weapon"), "выше +5 — только с Оружейником");
+  state.upgradesUnlocked = true;
+  assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник снимает предел +5");
 }
 
 // ---------- waves: ослабленные враги, круги ----------
@@ -221,15 +227,18 @@ function approx(a, b, eps, msg) {
   assert(full.bag.length === 3, "сумка не растёт за пределы");
 }
 
-// ---------- econ: квартира без дохода (апгрейд — после хаба) ----------
+// ---------- econ: квартира без дохода (v4.0: улучшается с 1-й минуты) ----------
 {
   const state = P.defaultState();
   state.supplies = 1000;
-  assert(!P.buyZoneLevel(state, "apartment"), "без хаба квартиру не улучшить");
-  state.hubUnlocked = true;
   const hpBefore = P.calcHero(state).hpMax;
-  assert(P.buyZoneLevel(state, "apartment"), "покупка уровня квартиры");
+  assert(P.buyZoneLevel(state, "apartment"), "квартира улучшается без хаба (v4.0)");
   assert(P.calcHero(state).hpMax === hpBefore + 20, "квартира: +20 HP за уровень");
+  // остальные зоны — по-прежнему за хабом
+  state.zones.entrance.unlocked = true;
+  assert(!P.buyZoneLevel(state, "entrance"), "прочие зоны — только после хаба");
+  state.hubUnlocked = true;
+  assert(P.buyZoneLevel(state, "entrance"), "с хабом — можно");
   assert(!P.buyZoneLevel({ supplies: 0, zones: state.zones }, "apartment"), "нельзя купить без припасов");
   assert(typeof P.totalIncome !== "function", "пассивного дохода больше нет");
 }
@@ -250,14 +259,15 @@ function approx(a, b, eps, msg) {
 // ---------- save/load: версия 3, миграция v2 ----------
 {
   const state = P.defaultState();
-  assert(state.version === 3, "сейв версии 3");
+  assert(state.version === 4, "сейв версии 4");
   state.supplies = 500;
   P.save(state);
   const loaded = P.load();
   assert(loaded.state.supplies >= 500, "сейв загружается");
-  assert(loaded.state.bag.length === 0 && loaded.state.training.str === 0, "поля v3 на месте");
+  assert(loaded.state.bag.length === 0 && loaded.state.training.str === 0, "поля v4 на месте");
+  assert(loaded.state.exp === 0 && loaded.state.snackUntil === 0, "поля v4.0 на месте");
 
-  // миграция: старый сейв v2 -> v3
+  // миграция: старый сейв v2 -> v4
   const old = {
     version: 2, supplies: 321, tech: 5, totalSupplies: 400,
     hero: { hp: 150 },
@@ -270,13 +280,24 @@ function approx(a, b, eps, msg) {
   P.storage.setItem("podezd_save_v2", JSON.stringify(old));
   P.storage.removeItem(P.SAVE_KEY);
   const migrated = P.load();
-  assert(migrated.state.version === 3, "миграция v2 -> v3");
+  assert(migrated.state.version === 4, "миграция v2 -> v4");
   assert(migrated.state.supplies >= 321, "припасы перенесены");
   assert(migrated.state.zones.apartment.level === 3, "уровень квартиры перенесён");
   assert(migrated.state.equipment.weapon.name === "Кухонный нож", "экипировка перенесена");
   assert(migrated.state.training && migrated.state.training.str === 0, "training добавлен");
   assert(Array.isArray(migrated.state.bag), "bag добавлен");
+  assert(migrated.state.exp >= 7, "опыт начислен ретроактивно за волны");
   P.storage.removeItem("podezd_save_v2");
+
+  // миграция v3 -> v4
+  const old3 = P.defaultState();
+  old3.version = 3;
+  delete old3.exp; delete old3.expSpent; delete old3.snackUntil;
+  old3.stats.wavesCleared = 100;
+  P.storage.setItem(P.SAVE_KEY, JSON.stringify(old3));
+  const m3 = P.load();
+  assert(m3.state.version === 4, "миграция v3 -> v4");
+  assert(m3.state.exp === 120, "v3: опыт = волны × 1.2");
 }
 
 // ---------- offline: без пассивного дохода, волны идут, оружие на в.3 ----------
@@ -487,15 +508,39 @@ function approx(a, b, eps, msg) {
   assert(!state.veteranUnlocked && !state.hubUnlocked && !state.upgradesUnlocked, "все гейты закрыты");
   clearBoss("yard");
   assert(state.veteranUnlocked, "зачистка Двора открыла Ветерана");
-  state.supplies = 1000;
-  assert(P.buyTraining(state, "str"), "Ветеран: тренировки работают");
   clearBoss("house");
   assert(state.hubUnlocked, "зачистка Дома открыла Хаб");
-  assert(P.buyZoneLevel(state, "apartment"), "Хаб: квартиру можно улучшать");
+  assert(P.buyZoneLevel(state, "apartment"), "квартиру можно улучшать");
   clearBoss("district");
   assert(state.upgradesUnlocked, "зачистка Района открыла Оружейника");
-  state.supplies = 100000; // мифическое тестовое оружие дорогое в прокачке
-  assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник: предметы улучшаются");
+  state.tech = 100000; // мифическое тестовое оружие дорогое в прокачке
+  assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник: предметы улучшаются выше +5");
+}
+
+// ---------- v4.0: опыт за волны и «перекус» ----------
+{
+  const state = P.defaultState();
+  const game = P.createGame(state, {});
+  assert(state.exp === 0, "опыт стартует с нуля");
+  // герой сильно перекачан — волны падают мгновенно
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 9000 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 8000, armor: 800 }, affixes: [], lvl: 0 };
+  let guard = 0;
+  while (state.zones.apartment.wave < 6 && guard++ < 20000) game.update(0.05);
+  assert(state.exp >= 5, "опыт начисляется за волны (волна 5 — элита +2)");
+  // перекус
+  state.supplies = 1000;
+  const cost = P.snackCost(state);
+  const dps0 = P.calcHero(state).dps;
+  const hp0 = P.calcHero(state).hpMax;
+  assert(P.buySnack(state), "перекус куплен");
+  assert(state.supplies === 1000 - cost, "перекус списал припасы");
+  assert(P.snackActive(state), "бафф активен");
+  approx(P.calcHero(state).dps, dps0 * 1.10, 0.01, "перекус: +10% DPS");
+  approx(P.calcHero(state).hpMax, Math.round(hp0 * 1.15), 1, "перекус: +15% HP");
+  assert(!P.buySnack(state), "повторный перекус во время баффа нельзя");
+  state.now = state.snackUntil + 1;
+  assert(!P.snackActive(state), "бафф истёк");
 }
 
 // ---------- миграция: старый autoSell>0 = авто-продажа включена ----------
@@ -511,7 +556,7 @@ function approx(a, b, eps, msg) {
   assert(P.waveSupplies(1) === Math.floor(3 * 1.28), "припасы с волны 1 — единицы");
   assert(P.waveSupplies(10) < 40, "на волне 10 припасы компактные");
   assert(P.zoneCost("apartment", 1) === Math.floor(5 * 1.6), "квартира: первый апгрейд ~8");
-  assert(P.trainCost(0) === 3, "Самоделки: стартовая цена 3");
+  assert(typeof P.trainCost !== "function", "v4.0: самоделки качаются за опыт, цены в припасах нет");
   // лут стал реже: за 100 бросков с обычной волны предметов заметно меньше половины
   let drops = 0;
   const st = P.defaultState();

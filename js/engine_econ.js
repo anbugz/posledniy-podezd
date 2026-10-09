@@ -12,7 +12,9 @@
   };
 
   P.buyZoneLevel = function (state, zoneId) {
-    if (!state.hubUnlocked) return false; // база открывается зачисткой Дома
+    // v4.0: квартира — это база на старте, улучшается с 1-й минуты;
+    // остальные зоны — только после открытия Хаба (зачистка Дома)
+    if (zoneId !== "apartment" && !state.hubUnlocked) return false;
     const z = state.zones[zoneId];
     if (!z || !z.unlocked) return false;
     const cost = P.zoneCost(zoneId, z.level);

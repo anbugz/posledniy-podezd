@@ -35,6 +35,8 @@
         const nightMult = isNight() ? P.DAY_NIGHT.night.techChance : 1;
         const evMult = isEvent() ? P.EVENT.techChance : 1;
         state.tech += P.rollTech(ev.enemy.kind, nightMult * evMult);
+        // v4.0: опыт выживания — валюта «Самоделок» (+1 волна / +2 элита / +5 босс)
+        state.exp = (state.exp || 0) + P.waveExp(ev.enemy.kind);
         // лут: гарантированное оружие на 3-й волне круга, иначе обычный бросок
         let loot = null;
         const nEff = P.waveCycle(ev.wave, zdef.wavesCap).nEff;
@@ -68,21 +70,21 @@
         if (zoneId === "yard" && !state.veteranUnlocked) {
           state.veteranUnlocked = true;
           game.banner = {
-            text: "🎖 ДВОР ЗАЧИЩЕН! На базе появился ВЕТЕРАН — учит «Самоделкам».",
+            text: "🎖 ДВОР ЗАЧИЩЕН! Ветеран одобрительно кивает: «Полевые приёмы» — скоро.",
             until: state.now + 10,
           };
         }
         if (zoneId === "house" && !state.hubUnlocked) {
           state.hubUnlocked = true;
           game.banner = {
-            text: "🏠 ДОМ ЗАЧИЩЕН! Открыта БАЗА: улучшение квартиры и обзор фронтов.",
+            text: "🏠 ДОМ ЗАЧИЩЕН! База укреплена — дальше Район и Оружейник.",
             until: state.now + 10,
           };
         }
         if (zoneId === "district" && !state.upgradesUnlocked) {
           state.upgradesUnlocked = true;
           game.banner = {
-            text: "🔧 РАЙОН ЗАЧИЩЕН! Оружейник открыл УЛУЧШЕНИЕ ПРЕДМЕТОВ.",
+            text: "🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления предметов (+5 → ∞).",
             until: state.now + 10,
           };
         }

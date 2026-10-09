@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=370">
+  <link rel="stylesheet" href="style.css?v=380">
 </head>
 <body>
   <main class="wrap">
@@ -15,7 +15,7 @@
       <div class="brand">🛸 Последний подъезд</div>
       <nav class="screen-tabs">
         <button id="tab-battle" class="stab active">⚔ Бой</button>
-        <button id="tab-base" class="stab" title="Откроется зачисткой Дома">🏠 База 🔒</button>
+        <button id="tab-base" class="stab" title="Квартира, самоделки и фронты">🏠 База</button>
       </nav>
       <button id="openChar" class="char-btn" title="Параметры персонажа">👤</button>
     </header>
@@ -28,11 +28,19 @@
           <span class="res-label">Припасы</span>
           <b class="res-value" id="supplies">0</b>
           <span class="res-sub" id="income">за волну: 0</span>
+          <button id="snackBtn" class="snack-btn" title="Перекус: +15% HP и +10% DPS на 5 минут">🍖</button>
         </div>
         <div class="res-chip">
           <span class="res-ico">🔧</span>
           <span class="res-label">Технологии</span>
           <b class="res-value" id="tech">0</b>
+          <span class="res-sub" id="techSub">усиление вещей</span>
+        </div>
+        <div class="res-chip">
+          <span class="res-ico">⭐</span>
+          <span class="res-label">Опыт</span>
+          <b class="res-value" id="expVal">0</b>
+          <span class="res-sub">самоделки</span>
         </div>
         <div class="res-chip">
           <span class="res-ico">⚔️</span>
@@ -80,8 +88,7 @@
     <section id="screen-base" class="hidden">
       <div id="hub-head"></div>
       <div class="zone-cards" id="zone-cards"></div>
-      <div id="veteran-note"></div>
-      <section class="training hidden" id="training-section">
+      <section class="training" id="training-section">
         <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
         <div class="training-grid" id="training-grid"></div>
       </section>
@@ -153,19 +160,19 @@
   <!-- Плавающий тултип предметов -->
   <div id="tooltip" class="tooltip hidden"></div>
 
-  <script src="js/ns.js?v=370"></script>
-  <script src="js/data_zones.js?v=370"></script>
-  <script src="js/data_enemies.js?v=370"></script>
-  <script src="js/data_items.js?v=370"></script>
-  <script src="js/data_skills.js?v=370"></script>
-  <script src="js/engine_stats.js?v=370"></script>
-  <script src="js/engine_combat.js?v=370"></script>
-  <script src="js/engine_loot.js?v=370"></script>
-  <script src="js/engine_econ.js?v=370"></script>
-  <script src="js/engine_save.js?v=370"></script>
-  <script src="js/engine_game.js?v=370"></script>
-  <script src="js/ui_battle.js?v=370"></script>
-  <script src="js/ui_panel.js?v=370"></script>
-  <script src="js/main.js?v=370"></script>
+  <script src="js/ns.js?v=380"></script>
+  <script src="js/data_zones.js?v=380"></script>
+  <script src="js/data_enemies.js?v=380"></script>
+  <script src="js/data_items.js?v=380"></script>
+  <script src="js/data_skills.js?v=380"></script>
+  <script src="js/engine_stats.js?v=380"></script>
+  <script src="js/engine_combat.js?v=380"></script>
+  <script src="js/engine_loot.js?v=380"></script>
+  <script src="js/engine_econ.js?v=380"></script>
+  <script src="js/engine_save.js?v=380"></script>
+  <script src="js/engine_game.js?v=380"></script>
+  <script src="js/ui_battle.js?v=380"></script>
+  <script src="js/ui_panel.js?v=380"></script>
+  <script src="js/main.js?v=380"></script>
 </body>
 </html>

@@ -67,7 +67,7 @@ h1, h2, .brand, .modal-title, .stab, .wave-main b, .res-value {
 .char-btn:hover { border-color: var(--blue); transform: translateY(-1px); }
 
 /* ---------- ресурсы сверху ---------- */
-.res-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.res-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
 .res-chip {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 8px 14px; display: flex; align-items: baseline; gap: 8px;
@@ -78,9 +78,18 @@ h1, h2, .brand, .modal-title, .stab, .wave-main b, .res-value {
 .res-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
 .res-value { font-size: 21px; color: var(--green); margin-left: auto; }
 .res-chip:nth-child(2) .res-value { color: var(--blue); }
-.res-chip:nth-child(3) .res-value { color: var(--accent); }
-.res-chip:nth-child(4) .res-value { color: var(--red); }
+.res-chip:nth-child(3) .res-value { color: var(--gold, #e8b45e); }
+.res-chip:nth-child(4) .res-value { color: var(--accent); }
+.res-chip:nth-child(5) .res-value { color: var(--red); }
 .res-sub { font-size: 10px; color: var(--muted); }
+.snack-btn {
+  align-self: center; padding: 3px 8px; font-size: 12px; cursor: pointer;
+  background: rgba(232, 180, 94, 0.12); color: var(--gold, #e8b45e);
+  border: 1px solid rgba(232, 180, 94, 0.4); border-radius: 8px;
+}
+.snack-btn:hover:not(:disabled) { background: rgba(232, 180, 94, 0.25); }
+.snack-btn:disabled { opacity: 0.55; cursor: default; }
+.snack-btn.on { background: rgba(94, 232, 125, 0.15); border-color: rgba(94, 232, 125, 0.5); color: var(--green); }
 
 /* ---------- бой: слоты + canvas ---------- */
 .battle-row {

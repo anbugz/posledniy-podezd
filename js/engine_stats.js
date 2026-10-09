@@ -10,33 +10,56 @@
   /* «Самоделки» (правки v2): четыре параметра, эффект за уровень.
      Фантазия: груша из одеял / закаливание / настил из коврика / метание ножей. */
   P.TRAINING = {
-    str: { name: "Сила",         desc: "+8% DPS за уровень",        flavor: "груша из одеял, гантели из банок" },
-    vit: { name: "Выносливость", desc: "+10% HP за уровень",        flavor: "закаливание, бег на месте" },
+    str: { name: "Сила",         desc: "+12% DPS за уровень",        flavor: "груша из одеял, гантели из банок" },
+    vit: { name: "Выносливость", desc: "+12% HP за уровень",        flavor: "закаливание, бег на месте" },
     def: { name: "Защита",       desc: "+3 брони за уровень",       flavor: "настил из коврика, фольга на куртке" },
     acc: { name: "Меткость",     desc: "+1.5 п.п. крита за уровень", flavor: "метание ножей по коридору" },
   };
-  P.TRAIN_EFFECT = { str: 0.08, vit: 0.10, def: 3, acc: 0.015 };
+  P.TRAIN_EFFECT = { str: 0.12, vit: 0.12, def: 3, acc: 0.015 };
 
-  /* Потолок «Самоделок» и покупка доступны только после Ветерана (зачистка Двора). */
+  /* Потолок «Самоделок»: 2 × уровень квартиры. */
   P.trainCap = function (state) {
     return P.CONFIG.TRAIN_CAP_PER_APT * state.zones.apartment.level;
   };
-  P.trainCost = function (level) {
-    const C = P.CONFIG;
-    return Math.floor(C.TRAIN_COST_BASE * Math.pow(C.TRAIN_COST_GROW, level));
+
+  /* v4.0: «Самоделки» доступны с 1-й минуты и качаются за ОПЫТ ВЫЖИВАНИЯ
+     (+1 за волну, элита +2, босс +5 — начисляется в engine_game), а не за
+     припасы. 1 очко = 1 уровень параметра. Ветеран (Двор) теперь открывает
+     вторую ветку («Полевые приёмы», v4.3), а не базовую прокачку. */
+  P.waveExp = function (kind) {
+    return kind === "boss" ? 5 : kind === "elite" ? 2 : 1;
+  };
+  P.expAvail = function (state) {
+    return Math.max(0, (state.exp || 0) - (state.expSpent || 0));
   };
 
-  /* Купить уровень параметра. Возвращает false если нет припасов/потолка. */
+  /* Вложить очко опыта в параметр. false — нет очков/потолок. */
   P.buyTraining = function (state, key) {
-    if (!state.veteranUnlocked) return false;
     const t = state.training;
     if (!(key in t)) return false;
-    const cap = P.trainCap(state);
-    if (t[key] >= cap) return false;
-    const cost = P.trainCost(t[key]);
+    if (t[key] >= P.trainCap(state)) return false;
+    if (P.expAvail(state) < 1) return false;
+    state.expSpent = (state.expSpent || 0) + 1;
+    t[key] += 1;
+    return true;
+  };
+
+  /* v4.0: «Перекус» — sink припасов с первых минут: +15% HP и +10% DPS
+     на 5 минут. Цена растёт с волной активной зоны. */
+  P.SNACK_SEC = 300;
+  P.snackCost = function (state) {
+    const z = state.zones[state.activeZone] || { wave: 1 };
+    return Math.floor(8 * Math.pow(1.2, z.wave || 1));
+  };
+  P.snackActive = function (state) {
+    return (state.snackUntil || 0) > (state.now || 0);
+  };
+  P.buySnack = function (state) {
+    if (P.snackActive(state)) return false;
+    const cost = P.snackCost(state);
     if (state.supplies < cost) return false;
     state.supplies -= cost;
-    t[key] += 1;
+    state.snackUntil = (state.now || 0) + P.SNACK_SEC;
     return true;
   };
 
@@ -69,10 +92,14 @@
     const t = state.training || { str: 0, vit: 0, def: 0, acc: 0 };
 
     const dps = dpsItems * (1 + P.TRAIN_EFFECT.str * t.str);
-    const hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit));
+    let hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit));
     armor += P.TRAIN_EFFECT.def * t.def;
     crit += P.TRAIN_EFFECT.acc * t.acc;
     crit = Math.min(crit, 0.60);
+    // v4.0: бафф «Перекус» (+10% DPS, +15% HP на 5 минут)
+    const snack = P.snackActive(state);
+    const dpsSnack = snack ? dps * 1.10 : dps;
+    if (snack) hpMax = Math.round(hpMax * 1.15);
     const dr = armor / (armor + P.ARMOR_K);
 
     // аффиксы: припасы с волн, реген в бою, крит-урон, двойной удар
@@ -82,10 +109,10 @@
     const critDmg = 2.0 + 0.1 * af.critdmg;        // базовый крит ×2
     const doubleHit = 0.1 * af.double;             // шанс второго удара
 
-    const dpsEff = dps * (1 + doubleHit) * (1 + crit * (critDmg - 1));
+    const dpsEff = dpsSnack * (1 + doubleHit) * (1 + crit * (critDmg - 1));
     return {
-      dps, dpsItems, hpMax, armor, crit, dr, dpsEff,
-      supMult, regenCombat, critDmg, doubleHit,
+      dps: dpsSnack, dpsItems, hpMax, armor, crit, dr, dpsEff,
+      supMult, regenCombat, critDmg, doubleHit, snack,
       training: Object.assign({}, t),
     };
   };

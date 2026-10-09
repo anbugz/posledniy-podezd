@@ -12,9 +12,12 @@
     const skills = {};
     for (const id of Object.keys(P.SKILLS)) skills[id] = { readyAt: 0 };
     return {
-      version: 3,
+      version: 4,
       supplies: 0,
       tech: 0,
+      exp: 0,          // v4.0: опыт выживания (валюта «Самоделок»)
+      expSpent: 0,
+      snackUntil: 0,   // v4.0: бафф «Перекус» (игровое время)
       totalSupplies: 0,
       hero: { hp: 120 },
       equipment: P.startingEquipment(),
@@ -72,14 +75,23 @@
     P.storage.setItem(P.SAVE_KEY, JSON.stringify(state));
   };
 
-  /* Миграция: v3 — как есть; v2 → v3 (переносим прогресс, добавляем
-     training/bag/bagSize); повреждённый/чужой -> новая игра. */
+  /* Миграция: v4 — как есть; v3 → v4 (добавляем exp/expSpent/snackUntil;
+     самоделки теперь за опыт — ретроактивно начисляем опыт за пройденные
+     волны: 1 за волну, чтобы старые игроки не остались без прокачки);
+     v2 → v3 → v4; повреждённый/чужой -> новая игра. */
   P.migrate = function (raw) {
     if (!raw) return P.defaultState();
     if (raw.version === 2) raw = migrateV2toV3(raw);
-    if (raw.version !== 3) return P.defaultState();
+    if (raw.version !== 3 && raw.version !== 4) return P.defaultState();
     const d = P.defaultState();
     const s = Object.assign(d, raw);
+    s.version = 4;
+    // v4.0: опыт за уже пройденные волны (оценка: волны × 1.2 — с элитами/боссами)
+    if (raw.exp == null) {
+      s.exp = Math.floor((raw.stats && raw.stats.wavesCleared || 0) * 1.2);
+      s.expSpent = 0;
+    }
+    if (raw.snackUntil == null) s.snackUntil = 0;
     s.hero = Object.assign({ hp: 120 }, raw.hero);
     s.equipment = Object.assign(d.equipment, raw.equipment);
     s.bag = Array.isArray(raw.bag) ? raw.bag : [];
@@ -166,6 +178,8 @@
       state.totalSupplies += sup;
       report.supplies += sup;
       state.tech += P.rollTech(enemy.kind, 0.5);
+      state.exp = (state.exp || 0) + P.waveExp(enemy.kind);
+      report.exp = (report.exp || 0) + P.waveExp(enemy.kind);
       // гарантированное оружие на 3-й волне круга
       if (P.waveCycle(zone.wave, zdef.wavesCap).nEff === 3) {
         const loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, zone.wave);

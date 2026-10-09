@@ -189,7 +189,7 @@
     return item;
   };
 
-  /* Цена прокачки: floor(base * grow^L) + 10% от score (L = текущий уровень). */
+  /* Цена прокачки в ТЕХНОЛОГИЯХ (v4.0): floor(base * grow^L) + 10% от score. */
   P.itemUpgradeCost = function (item) {
     const C = P.CONFIG;
     const lvl = item.lvl || 0;

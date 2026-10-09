@@ -160,9 +160,10 @@
   };
 
   /* Прокачать предмет: где = 'equip' (слот) или 'bag' (индекс сумки).
-     Доступно только после зачистки Района (Оружейник). */
+     v4.0: доступно с 1-й минуты, платим ТЕХНОЛОГИЯМИ (первый sink для tech);
+     выше +5 — только после зачистки Района (Оружейник). */
+  P.UPGRADE_SOFT_CAP = 5;
   P.upgradeItem = function (state, where, key) {
-    if (!state.upgradesUnlocked) return false;
     let item = null;
     if (where === "equip") {
       item = state.equipment[key];
@@ -170,9 +171,10 @@
       item = state.bag[key];
     }
     if (!item) return false;
+    if ((item.lvl || 0) >= P.UPGRADE_SOFT_CAP && !state.upgradesUnlocked) return false;
     const cost = P.itemUpgradeCost(item);
-    if (state.supplies < cost) return false;
-    state.supplies -= cost;
+    if (state.tech < cost) return false;
+    state.tech -= cost;
     P.upgradeItemStats(item);
     return true;
   };

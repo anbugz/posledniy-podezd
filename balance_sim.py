@@ -31,7 +31,7 @@ E_DPS_BASE, E_DPS_GROW, E_DPS_TIER = 2.4, 1.14, 1.8
 E_LOOP_MULT = 1.30
 ELITE_EVERY = 5          # каждая 5-я (не босс): HP x2.5, DPS x1.3
 BOSS_EVERY = 10
-BOSS_HP_MULT, BOSS_DPS_MULT = 6.0, 1.8
+BOSS_HP_MULT, BOSS_DPS_MULT = 3.5, 1.4
 WAVES_CAP = 20
 
 # герой
@@ -40,9 +40,10 @@ HP_PER_APT = 20          # за уровень квартиры
 REGEN_PCT = 0.05         # /сек вне боя
 KNOCKOUT_SEC = 3         # dev; в релизе 60
 
-# «Самоделки»: эффект за уровень и цена 3*1.35^L, потолок 2*уровень квартиры
-TRAIN = {"str": 0.08, "vit": 0.10, "def": 3.0, "acc": 0.015}
-TRAIN_COST_BASE, TRAIN_COST_GROW = 3.0, 1.35
+# «Самоделки» (v4.0): эффект за уровень, цена = 1 очко опыта, потолок 2×квартира
+TRAIN = {"str": 0.12, "vit": 0.12, "def": 3.0, "acc": 0.015}
+WAVE_EXP = {"norm": 1, "elite": 2, "boss": 5}
+UPGRADE_SOFT_CAP = 5     # без Оружейника (Район) предметы качаются до +5
 
 # экономика (ресайл v3.1: доходы и цены ÷5 — цифры реалистичнее)
 APT_BASE_COST, APT_COST_GROW = 5.0, 1.60
@@ -57,10 +58,12 @@ SIM_MINUTES = 30
 random.seed(42)
 
 
-def enemy(n, z=Z):
-    cycle = (n - 1) // WAVES_CAP
+def enemy(n, z=None):
+    # v4.0: кругов нет — после 20-й волны бот идёт в Подъезд (тир 2)
+    if z is None:
+        z = Z if n <= WAVES_CAP else 2
     n_eff = (n - 1) % WAVES_CAP + 1
-    loop = E_LOOP_MULT ** cycle
+    loop = 1.0
     hp = E_HP_BASE * (E_HP_GROW ** n_eff) * (E_HP_TIER ** z) * E_HP_GLOBAL * loop
     dps = E_DPS_BASE * (E_DPS_GROW ** n_eff) * (E_DPS_TIER ** z) * loop
     if n_eff % BOSS_EVERY == 0:
@@ -83,6 +86,8 @@ class Bot:
         self.t = 0.0
         self.supplies = 0.0
         self.tech = 0
+        self.exp = 0               # очки опыта (v4.0)
+        self.exp_spent = 0
         self.apt_level = 1
         self.wave = 1
         self.waves_done = 0
@@ -129,11 +134,16 @@ class Bot:
         return APT_BASE_COST * (APT_COST_GROW ** self.apt_level)
 
     def train_cost(self, key):
-        return TRAIN_COST_BASE * (TRAIN_COST_GROW ** self.training[key])
+        return 1  # v4.0: 1 очко опыта за уровень
 
     def weapon_upgrade_cost(self):
+        # v4.0: цена в ТЕХНОЛОГИЯХ
         return ITEM_UPGRADE_BASE * (ITEM_UPGRADE_GROW ** self.weapon_lvl) + \
             int(item_score(dps=self.dps_weapon, crit=self.crit) * 0.1)
+
+    @property
+    def exp_avail(self):
+        return self.exp - self.exp_spent
 
     def buy_apt(self):
         c = self.apt_cost()
@@ -147,17 +157,18 @@ class Bot:
     def buy_train(self, key):
         if self.training[key] >= self.train_cap:
             return False
-        c = self.train_cost(key)
-        if self.supplies >= c:
-            self.supplies -= c
+        if self.exp_avail >= self.train_cost(key):
+            self.exp_spent += 1
             self.training[key] += 1
             return True
         return False
 
     def upgrade_weapon(self):
+        if self.weapon_lvl >= UPGRADE_SOFT_CAP and self.waves_done < 100:
+            return False  # без Оружейника потолок +5
         c = self.weapon_upgrade_cost()
-        if self.supplies >= c:
-            self.supplies -= c
+        if self.tech >= c:
+            self.tech -= c
             self.dps_weapon *= ITEM_UPGRADE_MULT
             self.weapon_lvl += 1
             return True
@@ -187,6 +198,7 @@ class Bot:
             # награды: припасы с волны + тех
             self.supplies += math.floor(SUPPLY_DROP_BASE * (SUPPLY_DROP_GROW ** n))
             self.tech += (1 if random.random() < 0.30 else 0) * (5 if kind == "elite" else (20 if kind == "boss" else 1))
+            self.exp += WAVE_EXP[kind]
             # лут: апгрейд случайного статa либо продажа
             if random.random() < LOOT_CHANCE or kind != "norm":
                 boost = random.uniform(0.08, 0.25) * (2 if kind != "norm" else 1)
@@ -234,19 +246,18 @@ class Bot:
 
 def run(verbose=False):
     b = Bot()
-    # гейтинг v3.2: тренировки — после Двора (40 волн), квартира — после Дома (60),
-    # улучшение оружия — после Района (100). Бот «открывает» их по мере прохождения.
+    # v4.0: всё открыто с 1-й минуты — квартира за припасы, самоделки за опыт,
+    # оружие за технологии (до +5 без Оружейника).
     def spend():
         changed = True
         while changed:
             changed = False
-            if b.waves_done >= 60 and b.buy_apt():
+            if b.wave >= 4 and b.buy_apt():
                 changed = True
-            if b.waves_done >= 40:
-                for key in ("str", "vit", "def", "acc"):
-                    if b.buy_train(key):
-                        changed = True
-            if b.waves_done >= 100 and b.upgrade_weapon():
+            for key in ("str", "vit", "def", "acc"):
+                if b.buy_train(key):
+                    changed = True
+            if b.upgrade_weapon():
                 changed = True
     while b.t < SIM_MINUTES * 60:
         r = b.fight_wave()
@@ -255,10 +266,11 @@ def run(verbose=False):
             spend()
     # итоги
     print(f"--- {SIM_MINUTES} мин активной игры ---")
-    print(f"квартира ур.      : {b.apt_level}   (цель 1 — хаб закрыт первые 60 волн)")
-    print(f"волн пройдено     : {b.waves_done} (след. волна {b.wave})  (цель 7-14 без прокачек)")
+    print(f"квартира ур.      : {b.apt_level}   (цель 2-12)")
+    print(f"волн пройдено     : {b.waves_done} (след. волна {b.wave})  (цель 20-40: квартира зачищена)")
     print(f"припасы на руках  : {b.supplies:.0f}")
     print(f"технологии        : {b.tech}")
+    print(f"опыт (потрачено)  : {b.exp} ({b.exp_spent})")
     print(f"DPS героя         : {b.dps:.1f} (eff {b.dps_eff:.1f}, оружие +{b.weapon_lvl} ур.)  "
           f"HP {b.hp_max}  броня {b.armor_total:.0f}  крит {b.crit_total*100:.1f}%")
     print(f"Самоделки         : {b.training}")
@@ -266,14 +278,14 @@ def run(verbose=False):
     if early:
         print(f"бой волн 1-4      : {min(early):.1f}-{max(early):.1f} сек  (цель 5-10)")
     if 10 in b.fight_times:
-        print(f"босс волны 10     : {b.fight_times[10]:.0f} сек  (цель 15-150: дошли и дерёмся)")
+        print(f"босс волны 10     : {b.fight_times[10]:.0f} сек  (цель 5-150: дошли и дерёмся)")
     if verbose:
         for line in b.log:
             print("  " + line)
     boss10 = b.fight_times.get(10)
-    ok = (b.apt_level == 1 and 7 <= b.waves_done <= 14
+    ok = (2 <= b.apt_level <= 12 and 18 <= b.waves_done <= 40
           and (not early or max(early) <= 12)
-          and (boss10 is None or 15 <= boss10 <= 150))
+          and (boss10 is not None and 5 <= boss10 <= 150))
     print("ЦЕЛИ:", "OK" if ok else "НЕ СОШЛОСЬ — крутим коэффициенты")
     return ok
 
