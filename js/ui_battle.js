@@ -440,6 +440,25 @@
       const spawnAlpha = spawnP <= 1 ? 0.3 + 0.7 * spawnP : 1;
       ctx.globalAlpha = spawnAlpha;
 
+      // v4.1: золотая волна — пульсирующая аура «особой находки»
+      if (game.combat.golden) {
+        const pulse = 0.55 + 0.25 * Math.sin(t / 4);
+        const gr = ctx.createRadialGradient(x + shake, FLOOR_Y - 40, 6, x + shake, FLOOR_Y - 40, 78);
+        gr.addColorStop(0, "rgba(255, 214, 90, " + (0.50 * pulse).toFixed(3) + ")");
+        gr.addColorStop(0.6, "rgba(255, 180, 60, " + (0.22 * pulse).toFixed(3) + ")");
+        gr.addColorStop(1, "rgba(255, 180, 60, 0)");
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.arc(x + shake, FLOOR_Y - 40, 78, 0, Math.PI * 2);
+        ctx.fill();
+        // золотые искры вокруг
+        ctx.fillStyle = "rgba(255, 220, 110, " + (0.8 * pulse).toFixed(3) + ")";
+        for (let i = 0; i < 5; i++) {
+          const a = t / 9 + i * 1.26;
+          ctx.fillRect(x + shake + Math.cos(a) * 44, FLOOR_Y - 40 + Math.sin(a * 1.3) * 34, 3, 3);
+        }
+      }
+
       // спрайт врага зоны (пропорции сохраняем, якорь — низ по центру)
       const eArt = enemyArt(state.activeZone || "apartment", e.kind);
       if (eArt) {

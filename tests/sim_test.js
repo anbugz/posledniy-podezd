@@ -564,5 +564,47 @@ function approx(a, b, eps, msg) {
   assert(drops < 60, "шанс дропа с обычной волны сильно ниже (ресайл)");
 }
 
+// ---------- v4.1: лут-лестница, золотые волны, уники ----------
+{
+  // имена по тирам зон
+  const w1 = P.generateItem("weapon", 1, "common", Math.random);
+  const w2 = P.generateItem("weapon", 2, "common", Math.random);
+  assert(P.namesFor("weapon", 2).includes(w2.name), "тир 2: оружие из подъездного пула");
+  assert(P.namesFor("weapon", 1).includes(w1.name), "тир 1: бытовой пул");
+  assert(P.namesFor("weapon", 99).length > 0, "тир выше 4 — зажат на 4");
+  // расписание гарант-дропов
+  assert(P.GUARANTEED_DROPS[3] === "weapon" && P.GUARANTEED_DROPS[17] === "accessory", "расписание 3/17");
+  const st = P.defaultState();
+  const g5 = P.rollGuaranteedDrop(st, P.GUARANTEED_DROPS[5], 1, Math.random, 5);
+  assert(g5.item.slot === "armor", "волна 5 гарантированно даёт броню");
+  // золотая волна: редкость +2 ступени
+  assert(P.bumpRarity("common", 2) === "rare", "common +2 = rare");
+  assert(P.bumpRarity("epic", 2) === "mythic", "потолок — mythic");
+  let goldOk = true;
+  for (let i = 0; i < 30; i++) {
+    const r = P.rollGoldenLoot(st, "norm", 1, Math.random, 10);
+    if (P.RARITY_ORDER.indexOf(r.item.rarity) < 2) goldOk = false; // минимум rare
+    if (!r.golden) goldOk = false;
+  }
+  assert(goldOk, "золотой дроп всегда rare+ и помечен");
+  // золотой флаг в бою
+  const gs = P.defaultState();
+  P.CONFIG.GOLDEN_CHANCE = 1; // форсируем
+  const gCombat = P.createCombat(gs, "apartment", () => {});
+  gCombat.update(3.1, 1); // gap -> fight
+  assert(gCombat.golden === true, "волна золотится по шансу");
+  P.CONFIG.GOLDEN_CHANCE = 0.02;
+  // уники: один раз за зону, фикс-имя/аффиксы
+  const us = P.defaultState();
+  const u1 = P.rollUnique(us, "apartment", 1, Math.random, 20);
+  assert(u1 && u1.item.name === "Тесак «Домашний»", "уник квартиры падает");
+  assert(u1.item.rarity === "rare" && u1.item.affixes.includes("double"), "уник: фикс-редкость и аффикс");
+  assert(P.rollUnique(us, "apartment", 1, Math.random, 20) === null, "уник — только один раз");
+  assert(us.bag.some((x) => x.unique), "уник лёг в сумку");
+  // миграция: uniques по умолчанию
+  const mig = P.migrate({ version: 3, zones: {} });
+  assert(mig.uniques && typeof mig.uniques === "object", "миграция добавляет uniques");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

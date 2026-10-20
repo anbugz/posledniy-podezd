@@ -59,13 +59,60 @@
     return P.applyLoot(state, item, tier);
   };
 
-  /* Гарантированный дроп оружия на 3-й волне круга — ранний лут-флейвор. */
-  P.rollGuaranteedWeapon = function (state, tier, rng, wave) {
+  /* Гарантированные находки по расписанию (v4.1): «страховка от RNG» —
+     даже без случайных дропов герой одет к боссу 20-й волны. */
+  P.GUARANTEED_DROPS = { 3: "weapon", 5: "armor", 8: "boots", 11: "helmet", 14: "gloves", 17: "accessory" };
+
+  /* Гарантированный дроп слота на волне-расписании (редкость по norm-таблице). */
+  P.rollGuaranteedDrop = function (state, slot, tier, rng, wave) {
     rng = rng || Math.random;
     const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
     const rarity = P.rollRarity("norm", rng);
-    const item = P.generateItem("weapon", tier, rarity, rng, waveMult);
+    const item = P.generateItem(slot, tier, rarity, rng, waveMult);
     return P.applyLoot(state, item, tier);
+  };
+
+  /* Совместимость: гарант-оружие волны 3. */
+  P.rollGuaranteedWeapon = function (state, tier, rng, wave) {
+    return P.rollGuaranteedDrop(state, "weapon", tier, rng, wave);
+  };
+
+  /* Поднять редкость на n ступеней (потолок — mythic). */
+  P.bumpRarity = function (rarity, n) {
+    const i = P.RARITY_ORDER.indexOf(rarity);
+    return P.RARITY_ORDER[Math.min(i + (n || 1), P.RARITY_ORDER.length - 1)];
+  };
+
+  /* «Особая находка» (v4.1): дроп с золотой волны — редкость +2 ступени. */
+  P.rollGoldenLoot = function (state, kind, tier, rng, wave) {
+    rng = rng || Math.random;
+    const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
+    const slot = P.SLOTS[Math.floor(rng() * P.SLOTS.length)];
+    const rarity = P.bumpRarity(P.rollRarity(kind, rng), 2);
+    const item = P.generateItem(slot, tier, rarity, rng, waveMult);
+    const res = P.applyLoot(state, item, tier);
+    res.golden = true;
+    return res;
+  };
+
+  /* Уник с первого зачистки зоны — один раз (v4.1). */
+  P.rollUnique = function (state, zoneId, tier, rng, wave) {
+    const u = P.UNIQUES[zoneId];
+    if (!u) return null;
+    state.uniques = state.uniques || {};
+    if (state.uniques[zoneId]) return null;
+    state.uniques[zoneId] = true;
+    rng = rng || Math.random;
+    const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
+    const item = P.generateItem(u.slot, tier, u.rarity, rng, waveMult);
+    item.name = u.name;
+    item.icon = u.icon;
+    item.affixes = u.affixes.slice();
+    if (u.family) item.family = u.family;
+    item.unique = true;
+    const res = P.applyLoot(state, item, tier);
+    res.unique = true;
+    return res;
   };
 
   /* Положить предмет в сумку; при переполнении — авто-продажа.

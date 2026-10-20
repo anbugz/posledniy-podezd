@@ -18,6 +18,7 @@
       exp: 0,          // v4.0: опыт выживания (валюта «Самоделок»)
       expSpent: 0,
       snackUntil: 0,   // v4.0: бафф «Перекус» (игровое время)
+      uniques: {},     // v4.1: найденные уники по зонам (один раз за зону)
       totalSupplies: 0,
       hero: { hp: 120 },
       equipment: P.startingEquipment(),
@@ -180,18 +181,21 @@
       state.tech += P.rollTech(enemy.kind, 0.5);
       state.exp = (state.exp || 0) + P.waveExp(enemy.kind);
       report.exp = (report.exp || 0) + P.waveExp(enemy.kind);
-      // гарантированное оружие на 3-й волне круга
-      if (P.waveCycle(zone.wave, zdef.wavesCap).nEff === 3) {
-        const loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, zone.wave);
+      // гарант-дропы по расписанию (v4.1), иначе обычный бросок
+      const gSlot = P.GUARANTEED_DROPS[P.waveCycle(zone.wave, zdef.wavesCap).nEff];
+      if (gSlot) {
+        const loot = P.rollGuaranteedDrop(state, gSlot, zdef.tier, Math.random, zone.wave);
         if (loot) report.items.push(loot);
       } else {
         const loot = P.rollLoot(state, enemy.kind, zdef.tier, true, Math.random, zone.wave);
         if (loot) report.items.push(loot);
       }
-      // зачистка зоны оффлайн (первое прохождение) -> открываем следующую зону
+      // зачистка зоны оффлайн (первое прохождение) -> открываем следующую зону + уник
       if (zone.wave === zdef.wavesCap && zdef.next && state.zones[zdef.next] && !state.zones[zdef.next].unlocked) {
         state.zones[zdef.next].unlocked = true;
         report.zoneUnlocked = zdef.next;
+        const uniq = P.rollUnique(state, "apartment", zdef.tier, Math.random, zone.wave);
+        if (uniq) report.items.push(uniq);
       }
       zone.wave += 1;
       zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);

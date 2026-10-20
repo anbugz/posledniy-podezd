@@ -37,10 +37,13 @@
         state.tech += P.rollTech(ev.enemy.kind, nightMult * evMult);
         // v4.0: опыт выживания — валюта «Самоделок» (+1 волна / +2 элита / +5 босс)
         state.exp = (state.exp || 0) + P.waveExp(ev.enemy.kind);
-        // лут: гарантированное оружие на 3-й волне круга, иначе обычный бросок
+        // лут (v4.1): расписание гарант-дропов по слотам, золотая волна
+        // (+2 ступени редкости), иначе обычный бросок
         let loot = null;
         const nEff = P.waveCycle(ev.wave, zdef.wavesCap).nEff;
-        if (nEff === 3) loot = P.rollGuaranteedWeapon(state, zdef.tier, Math.random, ev.wave);
+        const gSlot = P.GUARANTEED_DROPS[nEff];
+        if (gSlot) loot = P.rollGuaranteedDrop(state, gSlot, zdef.tier, Math.random, ev.wave);
+        else if (ev.golden) loot = P.rollGoldenLoot(state, ev.enemy.kind, zdef.tier, Math.random, ev.wave);
         else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false, Math.random, ev.wave);
         if (loot) game.lootQueue.push(loot);
         // авто-фарм: +1 к волне делает combat.win(); здесь только проверка
@@ -58,38 +61,39 @@
         if (state.autoFarm) zone.wave = Math.max(1, zone.wave - 1);
         hooks.onWaveLoss && hooks.onWaveLoss(ev);
       } else if (ev.type === "zoneClear") {
+        // баннер зачистки собираем из частей: уник (v4.1) + открытие зоны/гейта
+        const parts = [];
+        // v4.1: уник с первого зачистки зоны (один раз)
+        const uniq = P.rollUnique(state, zoneId, zdef.tier, Math.random, zone.wave);
+        if (uniq) {
+          game.lootQueue.push(uniq);
+          parts.push("🏆 УНИК: " + uniq.item.name + " — уже в сумке!");
+        }
         const next = P.ZONES[zoneId].next;
         if (next && state.zones[next] && !state.zones[next].unlocked) {
           state.zones[next].unlocked = true;
-          game.banner = {
-            text: "🔓 " + P.ZONES[next].name.toUpperCase() + " ОТКРЫТ! Фронт подвинулся выше.",
-            until: state.now + 8,
-          };
+          parts.push("🔓 " + P.ZONES[next].name.toUpperCase() + " ОТКРЫТ! Фронт подвинулся выше.");
         }
         // зачистка зон открывает прокачки (по цепочке фронтов)
         if (zoneId === "yard" && !state.veteranUnlocked) {
           state.veteranUnlocked = true;
-          game.banner = {
-            text: "🎖 ДВОР ЗАЧИЩЕН! Ветеран одобрительно кивает: «Полевые приёмы» — скоро.",
-            until: state.now + 10,
-          };
+          parts.push("🎖 ДВОР ЗАЧИЩЕН! Ветеран одобрительно кивает: «Полевые приёмы» — скоро.");
         }
         if (zoneId === "house" && !state.hubUnlocked) {
           state.hubUnlocked = true;
-          game.banner = {
-            text: "🏠 ДОМ ЗАЧИЩЕН! База укреплена — дальше Район и Оружейник.",
-            until: state.now + 10,
-          };
+          parts.push("🏠 ДОМ ЗАЧИЩЕН! База укреплена — дальше Район и Оружейник.");
         }
         if (zoneId === "district" && !state.upgradesUnlocked) {
           state.upgradesUnlocked = true;
-          game.banner = {
-            text: "🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления предметов (+5 → ∞).",
-            until: state.now + 10,
-          };
+          parts.push("🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления предметов (+5 → ∞).");
         }
+        if (parts.length) game.banner = { text: parts.join("  "), until: state.now + 12 };
         hooks.onZoneClear && hooks.onZoneClear(ev);
       } else {
+        // v4.1: золотая волна — баннер «особой находки»
+        if (ev.type === "waveStart" && ev.golden) {
+          game.banner = { text: "✨ ОСОБАЯ НАХОДКА: волна золотится — дроп на 2 ступени выше!", until: state.now + 6 };
+        }
         hooks.onEvent && hooks.onEvent(ev);
       }
     }
