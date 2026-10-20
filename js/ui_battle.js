@@ -26,14 +26,33 @@
   loadArt("bg_house", "img/bg/bg_house.png");
   loadArt("bg_district", "img/bg/bg_district.png");
   loadArt("hero", "img/sprites/hero.png");
+  loadArt("heroHands", "img/sprites/hero_hands.png"); // v4.6: герой без оружия (оружие рисуем отдельно)
   loadArt("drone", "img/sprites/enemy_drone.png");
   loadArt("brute", "img/sprites/enemy_brute.png");
+  // v4.6: иконки оружия — для отрисовки в руках героя (то, что надето)
+  for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("w_" + fam, "img/icons/icon_" + fam + ".png");
   // v3.4: у каждой зоны свой враг и свой босс
   for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
     loadArt(z + "_grunt", "img/sprites/" + z + "_grunt.png");
     loadArt(z + "_boss", "img/sprites/" + z + "_boss.png");
   }
   const artReady = (im) => im && im.complete && im.naturalWidth > 0;
+
+  /* v4.6: линия земли по зонам, когда фон — сгенерированный арт (480×270).
+     Подобрано визуально: где на арте «стоят» персонажи (передний план).
+     Кодовые фоны рисуются от FLOOR_Y — там ничего не меняем. */
+  const GROUND_Y_ART = { apartment: 226, entrance: 228, yard: 234, house: 234, district: 246 };
+  function groundY(zoneId) {
+    return artReady(ART["bg_" + zoneId]) ? (GROUND_Y_ART[zoneId] || FLOOR_Y) : FLOOR_Y;
+  }
+  /* Пустая полоса под контентом спрайта (доля высоты, замер по альфа-каналу):
+     на неё опускаем спрайт, иначе фигура «стоит на воздухе». */
+  const SPRITE_TRIM = {
+    yard_grunt: 0.14, house_grunt: 0.04, house_boss: 0.04,
+    entrance_boss: 0.02, yard_boss: 0.07,
+  };
+  /* Летающие спрайты: низ контента держим НАД землёй + покачивание. */
+  const SPRITE_FLY = { district_grunt: 16, district_boss: 22, drone: 18 };
   /* Спрайт врага: зона + тип (босс/грунт), с откатом на старые спрайты. */
   function enemyArt(zoneId, kind) {
     const boss = kind === "boss";
@@ -91,7 +110,16 @@
       const zoneId = state.activeZone || "apartment";
       // сгенерированный задник зоны; пока не загружен — рисуем кодом ниже
       const bgArt = ART["bg_" + zoneId];
-      if (artReady(bgArt)) { ctx.drawImage(bgArt, 0, 0, W, H); return; }
+      if (artReady(bgArt)) {
+        ctx.drawImage(bgArt, 0, 0, W, H);
+        // v4.6: ночь на арт-фоне — холодное затемнение (раньше день/ночь
+        // работало только на кодовых фонах)
+        if (night) {
+          ctx.fillStyle = "rgba(8,12,38,0.38)";
+          ctx.fillRect(0, 0, W, H);
+        }
+        return;
+      }
       // пол и стены — общий каркас, детали — по зоне
       ctx.fillStyle = night ? PAL.wallNight : PAL.wall;
       ctx.fillRect(0, 0, W, FLOOR_Y);
@@ -325,15 +353,51 @@
       // замах: холодное — рывок к врагу; стрелковое — отдача назад
       const lunge = atkP <= 1 ? swing(atkP) * (isGun ? -7 : fam === "bat" ? 24 : 18) : 0;
       const hurtShake = hurtP <= 1 ? (Math.random() - 0.5) * 5 - swing(hurtP) * 8 : 0;
-      const x = HERO_X + lunge + hurtShake, y = FLOOR_Y + bob * 0;
+      const zoneId = state.activeZone || "apartment";
+      const gy = groundY(zoneId);
+      const x = HERO_X + lunge + hurtShake, y = gy;
       const dead = game.combat.phase === "knockout";
       const alpha = dead ? 0.4 + 0.2 * Math.sin(t / 4) : 1;
 
-      // спрайт героя (сгенерированный); пока не загружен — кодом ниже
-      if (artReady(ART.hero)) {
+      // спрайт героя (сгенерированный); v4.6: версия без оружия — оружие рисуем
+      // отдельно по надетому предмету. Пока не загружено — кодом ниже.
+      const heroArt = artReady(ART.heroHands) ? ART.heroHands : artReady(ART.hero) ? ART.hero : null;
+      if (heroArt) {
+        // дыхание: лёгкое масштабирование, якорь — ноги на земле
+        const breath = 1 + 0.012 * Math.sin(t / 10);
+        const hh = 80 * breath;
+        const hw = hh * (heroArt.naturalWidth / heroArt.naturalHeight); // пропорции спрайта
         ctx.globalAlpha = alpha;
-        ctx.drawImage(ART.hero, x - 34, y - 80, 68, 80);
+        ctx.drawImage(heroArt, x - hw / 2, y - hh, hw, hh);
         ctx.globalAlpha = 1;
+
+        // v4.6: надетое оружие в руках (иконка по семейству). Иконки стволов
+        // смотрят влево — зеркалим. Хват — правая рука спрайта.
+        const wpn = state.equipment.weapon;
+        const wArt = wpn && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
+        if (wArt) {
+          const hx = x + 10, hy = y - 38;
+          let rot, recoil = 0;
+          if (isGun) {
+            rot = 0;
+            if (atkP <= 1) recoil = swing(atkP) * 6; // отдача назад
+          } else if (atkP <= 1) {
+            // взмах: из-за плеча вперёд-вниз, с ускорением
+            rot = (fam === "bat" ? -2.3 : -1.9) + easeOut(atkP) * (fam === "bat" ? 2.7 : 2.2);
+          } else {
+            rot = -0.45 + Math.sin(t / 16) * 0.06; // idle: оружие наготове, покачивание
+          }
+          const len = fam === "rifle" ? 48 : fam === "gun" ? 30 : fam === "bat" ? 44 : 26;
+          const ar = wArt.naturalWidth / wArt.naturalHeight;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.translate(hx - recoil, hy);
+          ctx.rotate(rot);
+          if (isGun) ctx.scale(-1, 1);
+          ctx.drawImage(wArt, 0, -(len / ar) / 2, len, len / ar);
+          ctx.restore();
+        }
+
         // дуга замаха в момент удара (только холодное; стрелковое — трассер)
         if (atkP <= 1 && !isGun) {
           ctx.globalAlpha = (1 - atkP) * 0.9;
@@ -434,7 +498,9 @@
       const atkP = (lastT - enemyAtkAt) / 8;
       const slideIn = spawnP <= 1 ? (1 - easeOut(spawnP)) * 70 : 0;
       const lunge = atkP <= 1 ? swing(atkP) * 20 : 0;
-      const x = ENEMY_X + slideIn - lunge, y = FLOOR_Y;
+      const zoneIdE = state.activeZone || "apartment";
+      const gy = groundY(zoneIdE);
+      const x = ENEMY_X + slideIn - lunge, y = gy;
       const shake = enemyAnimHit > 0 ? (Math.random() - 0.5) * 3 : 0;
       const bob = Math.sin(t / 7 + 2) * 2;
       const spawnAlpha = spawnP <= 1 ? 0.3 + 0.7 * spawnP : 1;
@@ -443,28 +509,52 @@
       // v4.1: золотая волна — пульсирующая аура «особой находки»
       if (game.combat.golden) {
         const pulse = 0.55 + 0.25 * Math.sin(t / 4);
-        const gr = ctx.createRadialGradient(x + shake, FLOOR_Y - 40, 6, x + shake, FLOOR_Y - 40, 78);
+        const gr = ctx.createRadialGradient(x + shake, gy - 40, 6, x + shake, gy - 40, 78);
         gr.addColorStop(0, "rgba(255, 214, 90, " + (0.50 * pulse).toFixed(3) + ")");
         gr.addColorStop(0.6, "rgba(255, 180, 60, " + (0.22 * pulse).toFixed(3) + ")");
         gr.addColorStop(1, "rgba(255, 180, 60, 0)");
         ctx.fillStyle = gr;
         ctx.beginPath();
-        ctx.arc(x + shake, FLOOR_Y - 40, 78, 0, Math.PI * 2);
+        ctx.arc(x + shake, gy - 40, 78, 0, Math.PI * 2);
         ctx.fill();
         // золотые искры вокруг
         ctx.fillStyle = "rgba(255, 220, 110, " + (0.8 * pulse).toFixed(3) + ")";
         for (let i = 0; i < 5; i++) {
           const a = t / 9 + i * 1.26;
-          ctx.fillRect(x + shake + Math.cos(a) * 44, FLOOR_Y - 40 + Math.sin(a * 1.3) * 34, 3, 3);
+          ctx.fillRect(x + shake + Math.cos(a) * 44, gy - 40 + Math.sin(a * 1.3) * 34, 3, 3);
         }
       }
 
-      // спрайт врага зоны (пропорции сохраняем, якорь — низ по центру)
-      const eArt = enemyArt(state.activeZone || "apartment", e.kind);
+      // спрайт врага зоны (v4.6: земля по зоне, обрезка пустоты спрайта,
+      // idle-анимации по типу, антисипация атаки, вспышка при попадании)
+      const eArt = enemyArt(zoneIdE, e.kind);
       if (eArt) {
         const h = e.kind === "boss" ? 118 : e.kind === "elite" ? 92 : 70;
         const w = Math.round(h * (eArt.naturalWidth / eArt.naturalHeight));
-        ctx.drawImage(eArt, x - w / 2 + shake, FLOOR_Y - h + bob * 0.3, w, h);
+        const key = zoneIdE + "_" + (e.kind === "boss" ? "boss" : "grunt");
+        const trim = SPRITE_TRIM[key] || 0;
+        const fly = SPRITE_FLY[key] || 0;
+        // антисипация: приседание перед наскоком (первая треть замаха)
+        const antic = atkP <= 0.35 ? swing(atkP / 0.35) : 0;
+        const stretch = atkP > 0.35 && atkP <= 1 ? swing((atkP - 0.35) / 0.65) : 0;
+        // idle: грунт переступает, элита пульсирует, босс дышит, летающие парят
+        const idleBob = fly ? Math.sin(t / 9) * 3
+          : e.kind === "grunt" ? -Math.abs(Math.sin(t / 6)) * 2 : 0;
+        const pulse = e.kind === "elite" ? 1 + 0.035 * Math.sin(t / 4)
+          : e.kind === "boss" ? 1 + 0.015 * Math.sin(t / 8) : 1;
+        const sway = e.kind === "grunt" && !fly ? Math.sin(t / 6) * 0.04 : 0;
+        const scaleY = pulse * (1 - antic * 0.12 + stretch * 0.06);
+        const scaleX = pulse * (1 + antic * 0.08 - stretch * 0.04);
+        // низ контента спрайта — на земле (летающие — над землёй)
+        const bottomY = fly ? gy - fly + idleBob : gy + idleBob;
+        ctx.save();
+        if (enemyAnimHit > 0) ctx.filter = "brightness(2.2) saturate(1.6)";
+        ctx.translate(x + shake, bottomY);
+        ctx.rotate(sway);
+        ctx.scale(scaleX, scaleY);
+        ctx.drawImage(eArt, -w / 2, -h * (1 - trim), w, h);
+        ctx.restore();
+        ctx.filter = "none";
       } else if (e.kind === "boss") {
         // дрон-носильщик: корпус + ротор + мигалка
         ctx.fillStyle = PAL.bossDrone;
@@ -532,12 +622,13 @@
       const p = (lastT - dyingEnemy.at) / 10;
       if (p > 1) { dyingEnemy = null; return; }
       const x = ENEMY_X, h = dyingEnemy.h;
+      const gy = groundY(dyingEnemy.zoneId || state.activeZone || "apartment");
       const alpha = 1 - p;
       const drop = p * p * 26;
       const tilt = p * 0.5; // радианы крена
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.translate(x, FLOOR_Y - h / 2 + drop);
+      ctx.translate(x, gy - h / 2 + drop);
       ctx.rotate(tilt);
       const eArt = enemyArt(dyingEnemy.zoneId, dyingEnemy.kind);
       if (eArt) {
@@ -641,30 +732,48 @@
         drawFloatersAndFlashes();
         if (shaking) ctx.restore();
         drawStatus(t);
+        // v4.6: виньетка низкого HP — красный пульс по краям
+        const hpLow = state.hero.hp / P.calcHero(state).hpMax;
+        if (hpLow < 0.3) {
+          const vp = 0.22 + 0.14 * Math.sin(t / 6);
+          const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.95);
+          vg.addColorStop(0, "rgba(232,94,94,0)");
+          vg.addColorStop(1, "rgba(232,94,94," + vp.toFixed(3) + ")");
+          ctx.fillStyle = vg;
+          ctx.fillRect(0, 0, W, H);
+        }
         if (enemyAnimHit > 0) enemyAnimHit--;
         lastTickHadEnemy = !!(game.combat.phase === "fight" && game.combat.enemy);
       },
       /* реальный удар героя: урон по врагу + анимация по семейству оружия */
       heroHit(ev) {
+        const gy = groundY(state.activeZone || "apartment");
         const dmg = Math.max(1, Math.round(ev.dmg));
-        addFloater(ENEMY_X + (Math.random() - 0.5) * 20, FLOOR_Y - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
+        addFloater(ENEMY_X + (Math.random() - 0.5) * 20, gy - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
         const fam = P.weaponFamily(state.equipment.weapon) || "knife";
         if (fam === "gun" || fam === "rifle") {
-          // выстрел: вспышка у ствола + трассер до врага
-          flashes.push({ x: HERO_X + 34, y: FLOOR_Y - 44, life: fam === "rifle" ? 10 : 8 });
-          tracers.push({ x1: HERO_X + 36, y1: FLOOR_Y - 42, x2: ENEMY_X - 20, y2: FLOOR_Y - 52, life: 4 });
+          // выстрел: вспышка у дула + трассер до врага + гильза (v4.6)
+          const mx = HERO_X + 10 + (fam === "rifle" ? 48 : 30);
+          flashes.push({ x: mx, y: gy - 38, life: fam === "rifle" ? 10 : 8 });
+          tracers.push({ x1: mx + 2, y1: gy - 38, x2: ENEMY_X - 20, y2: gy - 52, life: 4 });
+          particles.push({
+            x: HERO_X + 18, y: gy - 40,
+            vx: -(0.8 + Math.random() * 0.6), vy: -(1.6 + Math.random() * 0.8),
+            color: "#d8a84e", life: 22,
+          });
         }
         // искры при попадании; крит — больше и с тряской экрана
-        spawnParticles(ENEMY_X - 10, FLOOR_Y - 60, ev.crit ? "#ffe87d" : "#c0c8d8", ev.crit ? 9 : 4, ev.crit ? 1.6 : 1);
+        spawnParticles(ENEMY_X - 10, gy - 60, ev.crit ? "#ffe87d" : "#c0c8d8", ev.crit ? 9 : 4, ev.crit ? 1.6 : 1);
         if (ev.crit) shake(4);
         heroAtkAt = lastT;
         enemyAnimHit = 4;
       },
       /* реальный удар врага: красный урон над героем + наскок врага + откат героя */
       enemyHit(ev) {
+        const gy = groundY(state.activeZone || "apartment");
         const dmg = Math.max(1, Math.round(ev.dmg));
-        addFloater(HERO_X + (Math.random() - 0.5) * 16, FLOOR_Y - 96, "-" + dmg, "#e85e5e");
-        spawnParticles(HERO_X + 8, FLOOR_Y - 60, "#e85e5e", 3, 0.8);
+        addFloater(HERO_X + (Math.random() - 0.5) * 16, gy - 96, "-" + dmg, "#e85e5e");
+        spawnParticles(HERO_X + 8, gy - 60, "#e85e5e", 3, 0.8);
         enemyAtkAt = lastT;
         heroHurtAt = lastT;
       },
@@ -672,10 +781,11 @@
       waveStart() { enemySpawnAt = lastT; },
       /* враг убит — взрыв частиц + падение; босс — тряска экрана */
       waveWin(ev) {
+        const gy = groundY(ev.zoneId || state.activeZone || "apartment");
         const kind = ev.enemy ? ev.enemy.kind : "grunt";
         dyingEnemy = { kind, zoneId: ev.zoneId || state.activeZone, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
         const col = kind === "boss" ? "#c0c8d8" : kind === "elite" ? "#9a5ad0" : "#7a9a4d";
-        spawnParticles(ENEMY_X, FLOOR_Y - 50, col, kind === "boss" ? 20 : 12, 1.8);
+        spawnParticles(ENEMY_X, gy - 50, col, kind === "boss" ? 20 : 12, 1.8);
         if (kind === "boss") shake(6);
       },
       addFloater,
