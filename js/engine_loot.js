@@ -119,6 +119,11 @@
      state.autoSell > 0 — продавать всё не выше порога редкости сразу. */
   P.applyLoot = function (state, item, tier) {
     state.stats.itemsFound++;
+    // v4.2: запоминаем лучшую редкость находки цикла (очки времени при престиже)
+    if (state.prestige) {
+      const ri = P.RARITY_ORDER.indexOf(item.rarity);
+      if (ri > (state.prestige.bestRarity || 0)) state.prestige.bestRarity = ri;
+    }
     const sellValue = Math.max(1, Math.floor(P.itemScore(item) * SELL_RATIO / 4));
     const threshold = P.autoSellThreshold(state);
     if (threshold && P.RARITY_ORDER.indexOf(item.rarity) <= P.RARITY_ORDER.indexOf(threshold)) {

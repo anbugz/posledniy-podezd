@@ -40,6 +40,28 @@
     panel.refresh();
     if (loaded.report) panel.showOffline(loaded.report);
 
+    // экран «Первый день. Снова.» после возврата во времени (v4.2)
+    try {
+      const pf = sessionStorage.getItem("podezd_prestige_flash");
+      if (pf) {
+        sessionStorage.removeItem("podezd_prestige_flash");
+        const info = JSON.parse(pf);
+        const pd = document.getElementById("prestige-done");
+        if (pd) {
+          document.getElementById("prestige-done-body").innerHTML =
+            "<p class='reset-note'>Часы «Слава» оттикали назад. Подъезд снова полон тварей, " +
+            "но тело помнит всё.</p>" +
+            "<p class='reset-note'>Цикл <b>" + info.cycles + "</b> завершён: <b>+" + info.earned +
+            " очков времени</b> (всего свободных: " + info.points + "). Уровень времени: <b>RL " + info.rl +
+            "</b> (+" + Math.round(info.rl * 5) + "% DPS/HP навсегда). Очки тратятся на базе.</p>";
+          pd.classList.add("visible");
+          const hide = () => pd.classList.remove("visible");
+          document.getElementById("prestige-done-ok").addEventListener("click", hide);
+          pd.addEventListener("click", (e) => { if (e.target === pd) hide(); });
+        }
+      }
+    } catch (e) {}
+
     // экран «Прогресс сброшен» после перезагрузки по кнопке сброса
     try {
       if (sessionStorage.getItem("podezd_reset_flash")) {

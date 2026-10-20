@@ -12,13 +12,14 @@
     const skills = {};
     for (const id of Object.keys(P.SKILLS)) skills[id] = { readyAt: 0 };
     return {
-      version: 4,
+      version: 5,
       supplies: 0,
       tech: 0,
       exp: 0,          // v4.0: опыт выживания (валюта «Самоделок»)
       expSpent: 0,
       snackUntil: 0,   // v4.0: бафф «Перекус» (игровое время)
       uniques: {},     // v4.1: найденные уники по зонам (один раз за зону)
+      prestige: P.defaultPrestige(), // v4.2: «Возврат во времени» (RL, очки, циклы)
       totalSupplies: 0,
       hero: { hp: 120 },
       equipment: P.startingEquipment(),
@@ -76,23 +77,25 @@
     P.storage.setItem(P.SAVE_KEY, JSON.stringify(state));
   };
 
-  /* Миграция: v4 — как есть; v3 → v4 (добавляем exp/expSpent/snackUntil;
-     самоделки теперь за опыт — ретроактивно начисляем опыт за пройденные
-     волны: 1 за волну, чтобы старые игроки не остались без прокачки);
-     v2 → v3 → v4; повреждённый/чужой -> новая игра. */
+  /* Миграция: v5 — как есть; v4 → v5 (добавляем prestige — «Возврат во времени»);
+     v3 → v4 (exp/expSpent/snackUntil; самоделки за опыт — ретроактивно начисляем
+     опыт за пройденные волны: волны × 1.2); v2 → v3 → … → v5;
+     повреждённый/чужой -> новая игра. */
   P.migrate = function (raw) {
     if (!raw) return P.defaultState();
     if (raw.version === 2) raw = migrateV2toV3(raw);
-    if (raw.version !== 3 && raw.version !== 4) return P.defaultState();
+    if (raw.version !== 3 && raw.version !== 4 && raw.version !== 5) return P.defaultState();
     const d = P.defaultState();
     const s = Object.assign(d, raw);
-    s.version = 4;
+    s.version = 5;
     // v4.0: опыт за уже пройденные волны (оценка: волны × 1.2 — с элитами/боссами)
     if (raw.exp == null) {
       s.exp = Math.floor((raw.stats && raw.stats.wavesCleared || 0) * 1.2);
       s.expSpent = 0;
     }
     if (raw.snackUntil == null) s.snackUntil = 0;
+    // v4.2: престиж — по умолчанию нулевой, частичные объекты дополняем
+    s.prestige = Object.assign(P.defaultPrestige(), raw.prestige || {});
     s.hero = Object.assign({ hp: 120 }, raw.hero);
     s.equipment = Object.assign(d.equipment, raw.equipment);
     s.bag = Array.isArray(raw.bag) ? raw.bag : [];
@@ -164,9 +167,10 @@
 
     // волны: идут, пока герой проходит; цикл волны = бой + пауза
     const hero = P.calcHero(state);
+    const cyclesOn = P.cyclesOn(state); // v4.2: круги 2+ при RL≥5
     let guard = 0; // защита от бесконечного цикла
     while (t > 0 && guard++ < 100000) {
-      const enemy = P.enemyStats(zone.wave, zdef.tier, zdef.wavesCap);
+      const enemy = P.enemyStats(zone.wave, zdef.tier, zdef.wavesCap, "apartment", cyclesOn);
       const check = P.waveCheck(hero, enemy, hero.hpMax);
       if (!check.win) break;
       const cycleSec = check.tKill + P.WAVE_GAP;
@@ -179,8 +183,8 @@
       state.totalSupplies += sup;
       report.supplies += sup;
       state.tech += P.rollTech(enemy.kind, 0.5);
-      state.exp = (state.exp || 0) + P.waveExp(enemy.kind);
-      report.exp = (report.exp || 0) + P.waveExp(enemy.kind);
+      state.exp = (state.exp || 0) + P.expGain(state, enemy.kind);
+      report.exp = (report.exp || 0) + P.expGain(state, enemy.kind);
       // гарант-дропы по расписанию (v4.1), иначе обычный бросок
       const gSlot = P.GUARANTEED_DROPS[P.waveCycle(zone.wave, zdef.wavesCap).nEff];
       if (gSlot) {
@@ -197,12 +201,19 @@
         const uniq = P.rollUnique(state, "apartment", zdef.tier, Math.random, zone.wave);
         if (uniq) report.items.push(uniq);
       }
+      // v4.2: повторные круги оффлайн (RL≥5) — очки времени
+      if (cyclesOn && zone.wave > zdef.wavesCap && P.waveCycle(zone.wave, zdef.wavesCap, true).nEff === zdef.wavesCap) {
+        state.prestige.circles = (state.prestige.circles || 0) + 1;
+      }
       zone.wave += 1;
       zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);
       state.stats.wavesCleared++;
     }
     report.tech = state.tech;
     report.wavesTo = zone.wave;
+
+    // v4.2: RL≥16 — авто-«Надеть лучшее» по возвращении
+    if (P.autoEquipBestOn(state)) P.equipBest(state);
 
     // HP героя при возвращении — полный (реген вне боя)
     state.hero.hp = P.calcHero(state).hpMax;

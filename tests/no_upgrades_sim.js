@@ -13,6 +13,7 @@ require("../js/engine_stats.js");
 require("../js/engine_combat.js");
 require("../js/engine_loot.js");
 require("../js/engine_econ.js");
+require("../js/engine_prestige.js");
 require("../js/engine_save.js");
 require("../js/engine_game.js");
 

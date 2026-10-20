@@ -7,12 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=390">
+  <link rel="stylesheet" href="style.css?v=400">
 </head>
 <body>
   <main class="wrap">
     <header class="topbar">
       <div class="brand">🛸 Последний подъезд</div>
+      <span id="rlChip" class="rl-chip hidden" title="Уровень времени (престиж): +5% DPS и +5% HP за уровень">⏳ RL 0</span>
       <nav class="screen-tabs">
         <button id="tab-battle" class="stab active">⚔ Бой</button>
         <button id="tab-base" class="stab" title="Квартира, самоделки и фронты">🏠 База</button>
@@ -92,6 +93,10 @@
         <h2>🔧 Самоделки <span class="section-sub" id="trainCap"></span></h2>
         <div class="training-grid" id="training-grid"></div>
       </section>
+      <section class="prestige hidden" id="prestige-section">
+        <h2>⏳ Возврат во времени <span class="section-sub" id="prestigeSub"></span></h2>
+        <div id="prestige-body"></div>
+      </section>
     </section>
 
     <footer class="footer">
@@ -157,22 +162,44 @@
     </div>
   </div>
 
+  <!-- Престиж: подтверждение возврата -->
+  <div class="overlay" id="prestige-confirm">
+    <div class="modal">
+      <div class="modal-head"><span class="modal-title">⏳ Вернуться в первый день?</span></div>
+      <div id="prestige-confirm-body"></div>
+      <div class="modal-btns">
+        <button id="prestige-yes" class="modal-btn danger">Отмотать время</button>
+        <button id="prestige-no" class="modal-btn">Остаться</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Престиж: экран после возврата -->
+  <div class="overlay" id="prestige-done">
+    <div class="modal">
+      <div class="modal-head"><span class="modal-title">⏳ Первый день. Снова.</span></div>
+      <div id="prestige-done-body"></div>
+      <button id="prestige-done-ok" class="modal-btn">В бой</button>
+    </div>
+  </div>
+
   <!-- Плавающий тултип предметов -->
   <div id="tooltip" class="tooltip hidden"></div>
 
-  <script src="js/ns.js?v=390"></script>
-  <script src="js/data_zones.js?v=390"></script>
-  <script src="js/data_enemies.js?v=390"></script>
-  <script src="js/data_items.js?v=390"></script>
-  <script src="js/data_skills.js?v=390"></script>
-  <script src="js/engine_stats.js?v=390"></script>
-  <script src="js/engine_combat.js?v=390"></script>
-  <script src="js/engine_loot.js?v=390"></script>
-  <script src="js/engine_econ.js?v=390"></script>
-  <script src="js/engine_save.js?v=390"></script>
-  <script src="js/engine_game.js?v=390"></script>
-  <script src="js/ui_battle.js?v=390"></script>
-  <script src="js/ui_panel.js?v=390"></script>
-  <script src="js/main.js?v=390"></script>
+  <script src="js/ns.js?v=400"></script>
+  <script src="js/data_zones.js?v=400"></script>
+  <script src="js/data_enemies.js?v=400"></script>
+  <script src="js/data_items.js?v=400"></script>
+  <script src="js/data_skills.js?v=400"></script>
+  <script src="js/engine_stats.js?v=400"></script>
+  <script src="js/engine_combat.js?v=400"></script>
+  <script src="js/engine_loot.js?v=400"></script>
+  <script src="js/engine_econ.js?v=400"></script>
+  <script src="js/engine_prestige.js?v=400"></script>
+  <script src="js/engine_save.js?v=400"></script>
+  <script src="js/engine_game.js?v=400"></script>
+  <script src="js/ui_battle.js?v=400"></script>
+  <script src="js/ui_panel.js?v=400"></script>
+  <script src="js/main.js?v=400"></script>
 </body>
 </html>

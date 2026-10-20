@@ -117,6 +117,10 @@
       snackBtn: $("snackBtn"), expVal: $("expVal"),
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"), tooltip: $("tooltip"),
+      rlChip: $("rlChip"),
+      prestigeSection: $("prestige-section"), prestigeSub: $("prestigeSub"), prestigeBody: $("prestige-body"),
+      prestigeConfirm: $("prestige-confirm"), prestigeConfirmBody: $("prestige-confirm-body"),
+      prestigeYes: $("prestige-yes"), prestigeNo: $("prestige-no"),
     };
 
     const SLOTS_LEFT = ["weapon", "gloves", "accessory"];
@@ -266,7 +270,7 @@
       const t = state.training;
       const z = state.zones[state.activeZone];
       const zdef = P.ZONES[state.activeZone];
-      const c = P.waveCycle(z.wave, zdef.wavesCap);
+      const c = P.waveCycle(z.wave, zdef.wavesCap, P.cyclesOn(state));
       let html = "";
       html += "<div class='ch-sect'>Бой</div>";
       html += "<div class='ch-row'><span>DPS (предметы)</span><b>" + fmt(Math.round(hero.dps * 10) / 10) + "</b></div>";
@@ -285,6 +289,14 @@
       html += "<div class='ch-row'><span>Зона</span><b>" + zdef.name + "</b></div>";
       html += "<div class='ch-row'><span>Волна</span><b>" + c.nEff + " / " + zdef.wavesCap + "</b></div>";
       html += "<div class='ch-row'><span>Рекорд волны</span><b>" + (z.maxWave || 1) + "</b></div>";
+      const pr = state.prestige;
+      if (pr && (pr.rl > 0 || pr.cycles > 0)) {
+        html += "<div class='ch-sect'>⏳ Время</div>";
+        html += "<div class='ch-row'><span>Уровень времени</span><b>RL " + pr.rl + "</b></div>";
+        html += "<div class='ch-row'><span>Бонус от RL</span><b>+" + Math.round((hero.rlMult - 1) * 100) + "% DPS/HP</b></div>";
+        html += "<div class='ch-row'><span>Очки времени</span><b>" + (pr.points || 0) + "</b></div>";
+        html += "<div class='ch-row'><span>Циклов прожито</span><b>" + (pr.cycles || 0) + "</b></div>";
+      }
       el.dollStats.innerHTML = html;
     }
 
@@ -599,7 +611,7 @@
         const z = state.zones[zid];
         const card = document.createElement("div");
         card.className = "zone-card" + (z.unlocked ? "" : " locked");
-        const c = P.waveCycle(z.wave, zdef.wavesCap);
+        const c = P.waveCycle(z.wave, zdef.wavesCap, P.cyclesOn(state));
         let html = "<h3>" + zdef.name + (z.unlocked ? "" : " 🔒") + "</h3>";
         if (z.unlocked) {
           html += "<div class='z-row'>Волна: <b>" + c.nEff + " / " + zdef.wavesCap + "</b>" + (c.cycle > 0 ? " · круг " + (c.cycle + 1) : "") + "</div>";
@@ -647,7 +659,101 @@
         trainBtns[key].btn.textContent = full ? "потолок" : "Вложить очко — ⭐1";
         trainBtns[key].btn.disabled = full || avail < 1;
       }
+      renderPrestige();
     }
+
+    /* ---------- престиж «Возврат во времени» (v4.2) ---------- */
+    function renderPrestige() {
+      const pr = state.prestige || P.defaultPrestige();
+      const show = P.prestigeAvailable(state) || pr.rl > 0 || pr.cycles > 0;
+      el.prestigeSection.classList.toggle("hidden", !show);
+      if (!show) return;
+
+      const prev = P.prestigePointsPreview(state);
+      const avail = P.prestigeAvailable(state);
+      el.prestigeSub.textContent = "уровень времени: RL " + pr.rl +
+        " (+" + Math.round((P.rlMult(state) - 1) * 100) + "% DPS/HP) · очков: " + (pr.points || 0);
+
+      let html = "";
+      if (avail) {
+        const rarName = ["обычная", "необычная", "редкая", "эпическая", "легендарная", "мифическая"][prev.rarity] || "—";
+        html += "<div class='hub-banner'><p>Часы «Слава» тикают в обратную сторону. Можно отмотать время " +
+          "в первый день: прогресс цикла сгорит, но память тела останется навсегда.</p>" +
+          "<p>Очки времени за этот цикл: зоны зачищено <b>" + prev.zones + " ×2</b> + " +
+          "лучшая находка <b>" + rarName + " (+" + prev.rarity + ")</b> + " +
+          "круги эндгейма <b>+" + prev.circles + "</b> = <b>" + prev.total + " ⏳</b></p></div>";
+      } else {
+        html += "<div class='hub-banner'><p>Цикл " + (pr.cycles + 1) + ". Следующий возврат откроется " +
+          "зачисткой <b>Района</b> (волна 20).</p></div>";
+      }
+
+      // таблица бонусов за RL
+      html += "<div class='rl-table'>";
+      for (const b of P.RL_BONUSES) {
+        const got = pr.rl >= b.rl;
+        html += "<div class='rl-row" + (got ? " got" : "") + "'><span class='rl-lvl'>RL " + b.rl + "</span>" +
+          "<span>" + b.text + "</span>" + (got ? "<span class='rl-check'>✓</span>" : "") + "</div>";
+      }
+      html += "</div>";
+      el.prestigeBody.innerHTML = html;
+
+      const btns = document.createElement("div");
+      btns.className = "prestige-btns";
+
+      const bRl = document.createElement("button");
+      bRl.className = "buy";
+      bRl.innerHTML = "⏳ Повысить уровень времени — <b>1 очко</b>";
+      bRl.disabled = (pr.points || 0) < 1;
+      bRl.title = "Каждый RL навсегда даёт +5% DPS и +5% HP";
+      bRl.addEventListener("click", () => {
+        if (P.buyRl(state)) {
+          battleView.addFloater(240, 120, "⏳ Уровень времени: RL " + state.prestige.rl, "#b48ee8");
+          forceHeavy = true;
+          refresh();
+          renderBase();
+        }
+      });
+      btns.appendChild(bRl);
+
+      const bGo = document.createElement("button");
+      bGo.className = "buy prestige-go";
+      bGo.innerHTML = "⏳ Вернуться в первый день" + (avail ? " (+" + prev.total + " очков)" : "");
+      bGo.disabled = !avail;
+      bGo.title = avail
+        ? "Сброс: волны, экипировка, припасы, технологии, опыт, самоделки, квартира. Останутся: RL и очки времени."
+        : "Откроется зачисткой Района (волна 20)";
+      bGo.addEventListener("click", openPrestigeConfirm);
+      btns.appendChild(bGo);
+
+      el.prestigeBody.appendChild(btns);
+    }
+
+    function openPrestigeConfirm() {
+      const prev = P.prestigePointsPreview(state);
+      el.prestigeConfirmBody.innerHTML =
+        "<p class='reset-note'>Время отмотается в первый день. <b>Сгорает</b>: волны и зоны, " +
+        "экипировка и сумка, припасы, технологии, опыт, самоделки, уровень квартиры, уники " +
+        "(их можно собрать заново).</p>" +
+        "<p class='reset-note'><b>Останется навсегда</b>: уровень времени RL " + state.prestige.rl +
+        " (+" + Math.round((P.rlMult(state) - 1) * 100) + "% DPS/HP) и <b>" +
+        ((state.prestige.points || 0) + prev.total) + " очков времени</b> (+" + prev.total + " за этот цикл).</p>";
+      el.prestigeConfirm.classList.add("visible");
+    }
+    el.prestigeNo.addEventListener("click", () => el.prestigeConfirm.classList.remove("visible"));
+    el.prestigeConfirm.addEventListener("click", (e) => {
+      if (e.target === el.prestigeConfirm) el.prestigeConfirm.classList.remove("visible");
+    });
+    el.prestigeYes.addEventListener("click", () => {
+      const earned = P.doPrestige(state);
+      if (earned == null) return;
+      P.save(state);
+      try {
+        sessionStorage.setItem("podezd_prestige_flash", JSON.stringify({
+          earned, rl: state.prestige.rl, points: state.prestige.points, cycles: state.prestige.cycles,
+        }));
+      } catch (e) {}
+      location.reload();
+    });
 
     // «Самоделки»: карточки создаём один раз
     const trainBtns = {};
@@ -709,12 +815,12 @@
       el.armor.textContent = Math.round(hero.armor) + " брони";
       el.crit.textContent = Math.round(hero.crit * 100) + "% крит";
 
-      const c = P.waveCycle(zone.wave, zdef.wavesCap);
+      const c = P.waveCycle(zone.wave, zdef.wavesCap, P.cyclesOn(state));
       let waveText = c.nEff + " / " + zdef.wavesCap;
       if (c.cycle > 0) waveText += " · круг " + (c.cycle + 1);
       el.wave.textContent = waveText;
       // «макс» понятнее в кругах: рекорд 411 = 21 круг, показываем круг
-      const mc = P.waveCycle(zone.maxWave || 1, zdef.wavesCap);
+      const mc = P.waveCycle(zone.maxWave || 1, zdef.wavesCap, P.cyclesOn(state));
       el.maxWave.textContent = mc.cycle > 0
         ? "круг " + (mc.cycle + 1) + " (волна " + mc.nEff + ")"
         : String(zone.maxWave || 1);
@@ -734,6 +840,17 @@
       }
 
       refreshZoneChips();
+
+      // v4.2: чип уровня времени в шапке (виден после первого возврата)
+      const pr = state.prestige;
+      const showRl = pr && (pr.rl > 0 || pr.cycles > 0);
+      el.rlChip.classList.toggle("hidden", !showRl);
+      if (showRl) {
+        el.rlChip.textContent = "⏳ RL " + pr.rl + ((pr.points || 0) > 0 ? " · " + pr.points + " 🕰" : "");
+        el.rlChip.title = "Уровень времени: +" + Math.round((hero.rlMult - 1) * 100) +
+          "% DPS/HP навсегда · циклов: " + (pr.cycles || 0) +
+          ((pr.points || 0) > 0 ? " · непотраченные очки: " + pr.points + " (на базе)" : "");
+      }
 
       // навыки
       for (const id of Object.keys(P.SKILLS)) {

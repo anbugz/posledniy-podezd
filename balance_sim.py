@@ -12,6 +12,12 @@
   - квартира ур. 3-6
   - волн пройдено 9-12
   - бой ранних волн 5-10 сек; босс в.10 — дошли и дерёмся 15-150 сек
+
+v4.2: добавлен прогон ДВУХ ПОЛНЫХ ЦИКЛОВ (run_cycles) — все 5 зон до зачистки
+Района, «Возврат во времени» (очки = зоны×2 + лучшая редкость + круги),
+второй цикл с RL-бонусами (+5% DPS/HP за RL, +10% опыта с RL3, +15% припасов
+с RL8). Цель: цикл 2 ≈ 60% времени цикла 1 (проход ≤ 70%).
+
 Использование: python3 balance_sim.py [--verbose]
 Коэффициенты ниже — ЕДИНСТВЕННЫЙ источник правды для калибровки;
 после сходимости их вручную переносим в js/data_*.js.
@@ -290,5 +296,259 @@ def run(verbose=False):
     return ok
 
 
+# ---------------- v4.2: престиж — прогон двух полных циклов ----------------
+# Цель калибровки: 2-й цикл (с RL-бонусами) ≈ 60% времени 1-го.
+# Бот проходит все 5 зон (20 волн каждая), зачищает Район, делает «Возврат»
+# и проходит заново с заработанным уровнем времени.
+
+ZONES_SEQ = [("Квартира", 1), ("Подъезд", 2), ("Двор", 2), ("Дом", 3), ("Район", 4)]
+RL_STAT = 0.05            # +5% DPS/HP за RL
+RL_CYCLE_MULT = 1.15      # рост врагов за круг (RL≥5; в циклах 1-2 не используется)
+SLOT_BASE = {"weapon": 6, "helmet": 12, "armor": 18, "gloves": 3, "boots": 10, "accessory": 6}
+TIER_MULT = 1.8
+RARITY_MULT = {"common": 1.0, "uncommon": 1.6, "rare": 2.6, "epic": 4.2,
+               "legendary": 6.8, "mythic": 11.0}
+RARITY_IDX = {"common": 0, "uncommon": 1, "rare": 2, "epic": 3, "legendary": 4, "mythic": 5}
+RARITIES_NORM = [("common", 0.25), ("uncommon", 0.10), ("rare", 0.04), ("epic", 0.01)]
+RARITIES_BOSS = [("rare", 0.55), ("epic", 0.30), ("legendary", 0.13), ("mythic", 0.02)]
+GUARANTEED = {3: "weapon", 5: "armor", 8: "boots", 11: "helmet", 14: "gloves", 17: "accessory"}
+GOLDEN_CHANCE = 0.02
+LOOT_WAVE_GROW = 1.065
+
+
+def roll_rarity(kind):
+    table = RARITIES_NORM if kind == "norm" else RARITIES_BOSS
+    r, acc = random.random(), 0.0
+    for rid, ch in table:
+        acc += ch
+        if r < acc:
+            return rid
+    return table[0][0]
+
+
+def bump_rarity(rid, n=2):
+    order = list(RARITY_IDX.keys())
+    return order[min(RARITY_IDX[rid] + n, len(order) - 1)]
+
+
+class CycleHero:
+    """Герой полного цикла: предметы по слотам (бюджетная модель generateItem),
+    самоделки за опыт, квартира за припасы, улучшение оружия за tech."""
+
+    def __init__(self, rl=0):
+        self.rl = rl
+        self.t = 0.0
+        self.supplies = 0.0
+        self.tech = 0.0
+        self.exp = 0.0
+        self.exp_spent = 0
+        self.apt_level = 1
+        self.training = {"str": 0, "vit": 0, "def": 0, "acc": 0}
+        # слоты: {slot: {"dps":..,"hp":..,"armor":..,"crit":..,"lvl":0}}
+        self.items = {
+            "weapon": {"dps": 6.0, "lvl": 0},                    # кухонный нож
+            "armor": {"hp": 10.0, "armor": 5.0, "lvl": 0},       # куртка
+            "boots": {"hp": 10.0, "lvl": 0},                     # кроссовки
+        }
+        self.crit_base = CRIT_CHANCE
+        self.best_rarity = 0
+        self.zone_idx = 0
+        self.wave = 1
+        self.waves_done = 0
+        self.hp = 140.0          # стартовое HP (100 + 20 квартира + 20 вещи)
+        self._cd = {}            # кулдауны навыков (name -> t готовности)
+        self.log = []
+
+    # --- статы ---
+    @property
+    def rl_mult(self):
+        return 1 + RL_STAT * self.rl
+
+    @property
+    def train_cap(self):
+        return 2 * self.apt_level
+
+    @property
+    def exp_mult(self):
+        return 1.10 if self.rl >= 3 else 1.0
+
+    @property
+    def sup_mult(self):
+        return 1.15 if self.rl >= 8 else 1.0
+
+    def _sum(self, key):
+        return sum(it.get(key, 0.0) * (ITEM_UPGRADE_MULT ** it.get("lvl", 0)) for it in self.items.values())
+
+    @property
+    def hp_max(self):
+        base = HP_BASE + HP_PER_APT * self.apt_level + self._sum("hp")
+        return round(base * (1 + TRAIN["vit"] * self.training["vit"]) * self.rl_mult)
+
+    @property
+    def dps(self):
+        return self._sum("dps") * (1 + TRAIN["str"] * self.training["str"]) * self.rl_mult
+
+    @property
+    def armor_total(self):
+        return self._sum("armor") + TRAIN["def"] * self.training["def"]
+
+    @property
+    def crit_total(self):
+        return min(self.crit_base + self._sum("crit") + TRAIN["acc"] * self.training["acc"], 0.60)
+
+    @property
+    def dps_eff(self):
+        return self.dps * (1 + self.crit_total * (CRIT_MULT - 1))
+
+    # --- лут ---
+    def item_budget(self, slot, tier, rarity, wave):
+        return SLOT_BASE[slot] * (TIER_MULT ** (tier - 1)) * RARITY_MULT[rarity] * \
+            (LOOT_WAVE_GROW ** max(wave - 1, 0))
+
+    def gen_item(self, slot, tier, rarity, wave):
+        b = self.item_budget(slot, tier, rarity, wave)
+        vary = lambda: 0.85 + random.random() * 0.3
+        it = {"lvl": 0}
+        if slot in ("weapon", "gloves"):
+            it["dps"] = b * 0.9 * vary()
+            it["crit"] = b * 0.03 * vary()
+        elif slot in ("helmet", "armor", "boots"):
+            it["hp"] = b * 0.9 * vary()
+            it["armor"] = b * 0.35 * vary()
+        else:  # accessory
+            if random.random() < 0.5:
+                it["dps"] = b * 0.55 * vary()
+            else:
+                it["hp"] = b * 0.55 * vary()
+            it["armor"] = b * 0.15 * vary()
+        return it
+
+    def score(self, it):
+        return it.get("dps", 0) * 4 + it.get("hp", 0) + it.get("armor", 0) * 3 + it.get("crit", 0) * 40
+
+    def loot_drop(self, slot, tier, kind, wave, guaranteed=False):
+        rarity = roll_rarity("norm" if guaranteed else kind)
+        if not guaranteed and random.random() < GOLDEN_CHANCE:
+            rarity = bump_rarity(rarity, 2)
+        self.best_rarity = max(self.best_rarity, RARITY_IDX[rarity])
+        it = self.gen_item(slot, tier, rarity, wave)
+        cur = self.items.get(slot)
+        if cur is None or self.score(it) > self.score({k: (v * ITEM_UPGRADE_MULT ** cur.get("lvl", 0) if isinstance(v, float) else v) for k, v in cur.items()}):
+            self.items[slot] = it   # замена: вложенные уровни прокачки горят
+        else:
+            self.supplies += max(1, int(self.score(it) * SELL_RATIO / 4))
+
+    # --- траты ---
+    def spend(self):
+        changed = True
+        while changed:
+            changed = False
+            if self.waves_done >= 4 and self.supplies >= APT_BASE_COST * APT_COST_GROW ** self.apt_level:
+                self.supplies -= APT_BASE_COST * APT_COST_GROW ** self.apt_level
+                self.apt_level += 1
+                changed = True
+            for key in ("str", "vit", "def", "acc"):
+                if self.training[key] < self.train_cap and self.exp - self.exp_spent >= 1:
+                    self.exp_spent += 1
+                    self.training[key] += 1
+                    changed = True
+            # улучшение оружия за tech (софт-кэп +5 до Оружейника = до конца цикла)
+            w = self.items["weapon"]
+            if w.get("lvl", 0) < UPGRADE_SOFT_CAP:
+                cost = ITEM_UPGRADE_BASE * ITEM_UPGRADE_GROW ** w.get("lvl", 0) + int(self.score(w) * 0.1)
+                if self.tech >= cost:
+                    self.tech -= cost
+                    w["lvl"] = w.get("lvl", 0) + 1
+                    changed = True
+
+    # --- бой ---
+    def fight_wave(self):
+        zone_name, tier = ZONES_SEQ[self.zone_idx]
+        n = self.wave
+        self.hp = min(self.hp, self.hp_max)   # hp_max мог вырасти после трат
+        hp_e, dps_e, kind = enemy(n, tier)
+        dps_hero = self.dps_eff
+        if kind != "norm":
+            if self.t >= self._cd.get("rain", 0):
+                dps_hero *= 3.0
+                self._cd["rain"] = self.t + 300
+        t_kill = hp_e / max(dps_hero, 0.001)
+        incoming = dps_e * (1 - dr(self.armor_total))
+        if t_kill < self.hp / max(incoming, 0.001):
+            self.hp -= incoming * t_kill
+            self.supplies += math.floor(SUPPLY_DROP_BASE * SUPPLY_DROP_GROW ** n * self.sup_mult)
+            self.tech += (1 if random.random() < 0.30 else 0) * (5 if kind == "elite" else (20 if kind == "boss" else 1))
+            self.exp += WAVE_EXP[kind] * self.exp_mult
+            # лут
+            if n in GUARANTEED:
+                self.loot_drop(GUARANTEED[n], tier, kind, n, guaranteed=True)
+            elif kind != "norm" or random.random() < LOOT_CHANCE:
+                slot = random.choice(list(SLOT_BASE.keys()))
+                self.loot_drop(slot, tier, kind, n)
+            self.waves_done += 1
+            self.t += t_kill + WAVE_GAP_SEC
+            # реген вне боя: 5%/сек за паузу между волнами (как в js)
+            self.hp = min(self.hp_max, self.hp + self.hp_max * REGEN_PCT * WAVE_GAP_SEC)
+            self.spend()
+            # переход по волнам/зонам
+            if n >= WAVES_CAP:
+                if self.zone_idx < len(ZONES_SEQ) - 1:
+                    self.zone_idx += 1
+                    self.wave = 1
+                    self.log.append(f"t={self.t/60:6.1f}м ЗАЧИЩЕНА {zone_name} -> {ZONES_SEQ[self.zone_idx][0]}")
+                    return True, False
+                return True, True   # Район зачищен — цикл завершён
+            self.wave += 1
+            return True, False
+        # стена: ждём полного регена (5%/сек вне боя), тратимся, повторяем
+        wait = max((self.hp_max - self.hp) / (self.hp_max * REGEN_PCT), 5.0)
+        self.t += wait
+        self.hp = self.hp_max
+        self.spend()
+        return False, False
+
+    def reset_cycle(self, rl):
+        """Возврат во времени: сгорает всё, кроме RL."""
+        t = self.t
+        rl_total = self.rl + rl
+        self.__init__(rl_total)
+        self.t = t
+
+
+def run_cycles(verbose=False, cap_hours=12):
+    """Прогон двух циклов подряд. Цель: цикл 2 ≈ 60% времени цикла 1."""
+    hero = CycleHero()
+    results = []
+    for cycle in (1, 2):
+        t0 = hero.t
+        done = False
+        while not done and hero.t - t0 < cap_hours * 3600:
+            _, done = hero.fight_wave()
+        dt = hero.t - t0
+        zones_cleared = hero.zone_idx + (1 if done else 0)
+        points = zones_cleared * 2 + hero.best_rarity  # круги: 0 в первых циклах (RL<5)
+        results.append({"cycle": cycle, "sec": dt, "done": done, "points": points,
+                        "best_rarity": hero.best_rarity, "waves": hero.waves_done,
+                        "dps": hero.dps, "hp": hero.hp_max, "apt": hero.apt_level})
+        print(f"--- цикл {cycle} ---")
+        print(f"  время цикла     : {dt/3600:.2f} ч ({dt/60:.0f} мин)" + ("" if done else "  [НЕ ЗАВЕРШЁН за лимит]"))
+        print(f"  волн пройдено   : {hero.waves_done}")
+        print(f"  финал           : DPS {hero.dps:.0f}, HP {hero.hp_max}, квартира {hero.apt_level}, best rarity idx {hero.best_rarity}")
+        print(f"  очки времени    : {points} (зоны {zones_cleared}×2 + редкость {hero.best_rarity})")
+        if verbose:
+            for line in hero.log:
+                print("   " + line)
+        hero.reset_cycle(points)
+    t1, t2 = results[0]["sec"], results[1]["sec"]
+    ratio = t2 / t1 if t1 else 1
+    print(f"цикл 2 / цикл 1   : {ratio:.0%}  (цель ≈ 60%)")
+    ok = results[0]["done"] and results[1]["done"] and ratio <= 0.70
+    print("ЦЕЛИ ПРЕСТИЖА:", "OK" if ok else "НЕ СОШЛОСЬ — крутим RL-бонусы/очки")
+    return ok
+
+
 if __name__ == "__main__":
-    run(verbose="--verbose" in sys.argv)
+    verbose = "--verbose" in sys.argv
+    ok1 = run(verbose=verbose)
+    ok2 = run_cycles(verbose=verbose)
+    sys.exit(0 if (ok1 and ok2) else 1)

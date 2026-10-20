@@ -14,6 +14,7 @@ require("../js/engine_stats.js");
 require("../js/engine_combat.js");
 require("../js/engine_loot.js");
 require("../js/engine_econ.js");
+require("../js/engine_prestige.js");
 require("../js/engine_save.js");
 require("../js/engine_game.js");
 
@@ -259,13 +260,14 @@ function approx(a, b, eps, msg) {
 // ---------- save/load: версия 3, миграция v2 ----------
 {
   const state = P.defaultState();
-  assert(state.version === 4, "сейв версии 4");
+  assert(state.version === 5, "сейв версии 5");
   state.supplies = 500;
   P.save(state);
   const loaded = P.load();
   assert(loaded.state.supplies >= 500, "сейв загружается");
   assert(loaded.state.bag.length === 0 && loaded.state.training.str === 0, "поля v4 на месте");
   assert(loaded.state.exp === 0 && loaded.state.snackUntil === 0, "поля v4.0 на месте");
+  assert(loaded.state.prestige && loaded.state.prestige.rl === 0, "поле v4.2 (prestige) на месте");
 
   // миграция: старый сейв v2 -> v4
   const old = {
@@ -280,7 +282,7 @@ function approx(a, b, eps, msg) {
   P.storage.setItem("podezd_save_v2", JSON.stringify(old));
   P.storage.removeItem(P.SAVE_KEY);
   const migrated = P.load();
-  assert(migrated.state.version === 4, "миграция v2 -> v4");
+  assert(migrated.state.version === 5, "миграция v2 -> v5");
   assert(migrated.state.supplies >= 321, "припасы перенесены");
   assert(migrated.state.zones.apartment.level === 3, "уровень квартиры перенесён");
   assert(migrated.state.equipment.weapon.name === "Кухонный нож", "экипировка перенесена");
@@ -296,8 +298,20 @@ function approx(a, b, eps, msg) {
   old3.stats.wavesCleared = 100;
   P.storage.setItem(P.SAVE_KEY, JSON.stringify(old3));
   const m3 = P.load();
-  assert(m3.state.version === 4, "миграция v3 -> v4");
+  assert(m3.state.version === 5, "миграция v3 -> v5");
   assert(m3.state.exp === 120, "v3: опыт = волны × 1.2");
+
+  // миграция v4 -> v5: прогресс на месте, prestige добавлен нулевым
+  const old4 = P.defaultState();
+  old4.version = 4;
+  delete old4.prestige;
+  old4.supplies = 777;
+  old4.stats.wavesCleared = 55;
+  P.storage.setItem(P.SAVE_KEY, JSON.stringify(old4));
+  const m4 = P.load();
+  assert(m4.state.version === 5, "миграция v4 -> v5");
+  assert(m4.state.supplies >= 777, "v4: припасы перенесены");
+  assert(m4.state.prestige.rl === 0 && m4.state.prestige.points === 0, "v4: prestige добавлен нулевым");
 }
 
 // ---------- offline: без пассивного дохода, волны идут, оружие на в.3 ----------
@@ -604,6 +618,129 @@ function approx(a, b, eps, msg) {
   // миграция: uniques по умолчанию
   const mig = P.migrate({ version: 3, zones: {} });
   assert(mig.uniques && typeof mig.uniques === "object", "миграция добавляет uniques");
+}
+
+// ---------- v4.2: престиж «Возврат во времени» ----------
+{
+  // RL-множитель статов
+  const s0 = P.defaultState();
+  const h0 = P.calcHero(s0);
+  s0.prestige.rl = 10;
+  const h1 = P.calcHero(s0);
+  approx(h1.dps, h0.dps * 1.5, 0.01, "RL 10: +50% DPS");
+  approx(h1.hpMax, Math.round(h0.hpMax * 1.5), 1, "RL 10: +50% HP");
+  assert(h1.rl === 10 && Math.abs(h1.rlMult - 1.5) < 1e-9, "calcHero возвращает rl/rlMult");
+
+  // пороги бонусов
+  const mk = (rl) => { const s = P.defaultState(); s.prestige.rl = rl; return s; };
+  assert(P.expMult(mk(2)) === 1 && P.expMult(mk(3)) === 1.10, "RL3: +10% опыта");
+  assert(!P.cyclesOn(mk(4)) && P.cyclesOn(mk(5)), "RL5: круги 2+ включаются");
+  assert(P.calcHero(mk(7)).supMult === 1 && P.calcHero(mk(8)).supMult === 1.15, "RL8: +15% припасов");
+  approx(P.goldenChance(mk(11)), 0.02, 1e-9, "RL11: шанс золота базовый");
+  approx(P.goldenChance(mk(12)), 0.03, 1e-9, "RL12: +1 п.п. к золоту");
+  assert(!P.autoEquipBestOn(mk(15)) && P.autoEquipBestOn(mk(16)), "RL16: авто-«Надеть лучшее»");
+
+  // круги: волна 40 при RL≥5 — второй круг с ×1.15
+  const e20 = P.enemyStats(20, 1, 20, "apartment", true);
+  const e40 = P.enemyStats(40, 1, 20, "apartment", true);
+  assert(e40.cycle === 1 && e40.kind === "boss", "волна 40 — босс второго круга");
+  approx(e40.hp / e20.hp, 1.15, 0.001, "круг 2: ×1.15 HP");
+  const e40off = P.enemyStats(40, 1, 20, "apartment", false);
+  assert(e40off.cycle === 0 && e40off.hp === e20.hp, "без RL5 кругов нет (как раньше)");
+
+  // доступность и очки
+  const s1 = P.defaultState();
+  assert(!P.prestigeAvailable(s1), "престиж закрыт до зачистки Района");
+  assert(P.doPrestige(s1) === null, "doPrestige без Района — null, ничего не сброшено");
+  assert(s1.zones.apartment.wave === 1 && s1.supplies === 0, "state не тронут");
+
+  const s2 = P.defaultState();
+  s2.upgradesUnlocked = true;
+  for (const id of P.ZONE_ORDER) {
+    s2.zones[id].unlocked = true;
+    s2.zones[id].maxWave = P.ZONES[id].wavesCap + 1; // зона зачищена
+    s2.zones[id].wave = 30;
+  }
+  s2.supplies = 5000; s2.tech = 300; s2.exp = 50; s2.expSpent = 20;
+  s2.bag.push(P.generateItem("weapon", 1, "rare", Math.random));
+  s2.uniques = { apartment: true, district: true };
+  s2.training.str = 4;
+  s2.prestige.bestRarity = 3; // эпик
+  s2.prestige.circles = 2;
+  const prev = P.prestigePointsPreview(s2);
+  assert(prev.zones === 5 && prev.zonePts === 10, "очки: 5 зон ×2");
+  assert(prev.total === 10 + 3 + 2, "очки: зоны + редкость + круги");
+  const earned = P.doPrestige(s2);
+  assert(earned === 15, "заработано 15 очков времени");
+  assert(s2.prestige.points === 15 && s2.prestige.cycles === 1, "очки и цикл начислены");
+  assert(s2.prestige.bestRarity === 0 && s2.prestige.circles === 0, "счётчики цикла обнулены");
+  // сброс
+  assert(s2.supplies === 0 && s2.tech === 0 && s2.exp === 0 && s2.expSpent === 0, "ресурсы сброшены");
+  assert(s2.bag.length === 0, "сумка пуста");
+  assert(s2.equipment.weapon.name === "Кухонный нож", "экипировка — стартовая");
+  assert(s2.training.str === 0 && s2.zones.apartment.level === 1, "самоделки и квартира сброшены");
+  assert(!s2.zones.district.unlocked && s2.zones.district.wave === 1, "зоны закрыты заново");
+  assert(!s2.upgradesUnlocked && !s2.hubUnlocked && !s2.veteranUnlocked, "гейты закрыты");
+  assert(Object.keys(s2.uniques).length === 0, "уники можно собрать заново");
+  assert(s2.version === 5, "версия сейва сохранена");
+  assert(s2.stats.wavesCleared >= 0 && s2.stats === s2.stats, "статистика пережила возврат");
+
+  // покупка RL за очки
+  assert(P.buyRl(s2), "очко времени -> RL 1");
+  assert(s2.prestige.rl === 1 && s2.prestige.points === 14, "RL вырос, очко списано");
+  const sPoor = P.defaultState();
+  assert(!P.buyRl(sPoor), "без очков RL не купить");
+
+  // лучшая редкость цикла трекается через applyLoot
+  const s3 = P.defaultState();
+  P.applyLoot(s3, P.generateItem("boots", 1, "common", Math.random), 1);
+  assert(s3.prestige.bestRarity === 0, "обычная находка = 0 очков");
+  P.applyLoot(s3, P.generateItem("boots", 1, "epic", Math.random), 1);
+  assert(s3.prestige.bestRarity === 3, "эпик = 3 очка за цикл");
+  P.applyLoot(s3, P.generateItem("boots", 1, "rare", Math.random), 1);
+  assert(s3.prestige.bestRarity === 3, "редкость не понижается");
+
+  // повторный круг (RL≥5) даёт zoneClear с cycle>0 -> очко за круг
+  const s4 = P.defaultState();
+  s4.prestige.rl = 5;
+  s4.autoFarm = true;
+  s4.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 99999 }, affixes: [], lvl: 0 };
+  s4.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 99999, armor: 900 }, affixes: [], lvl: 0 };
+  s4.zones.apartment.wave = 40; // босс второго круга
+  s4.zones.apartment.maxWave = 40;
+  const g4 = P.createGame(s4, {});
+  for (let i = 0; i < 20000 && s4.prestige.circles === 0; i++) g4.update(0.05);
+  assert(s4.prestige.circles === 1, "зачистка 2-го круга дала очко времени");
+  assert(s4.zones.apartment.wave === 41, "после босса круга волна идёт дальше");
+
+  // RL16: авто-«Надеть лучшее» после находки в сумку
+  const s5 = P.defaultState();
+  s5.prestige.rl = 16;
+  s5.autoFarm = true;
+  const origRoll = P.rollLoot;
+  P.rollLoot = function (st, kind, tier, off, rng, wave) {
+    return P.applyLoot(st, P.generateItem("weapon", 4, "mythic", Math.random), tier);
+  };
+  const g5 = P.createGame(s5, {});
+  for (let i = 0; i < 4000 && s5.stats.wavesCleared === 0; i++) g5.update(0.05);
+  P.rollLoot = origRoll;
+  assert(s5.stats.wavesCleared >= 1, "волна выиграна для теста авто-надевания");
+  assert(s5.equipment.weapon.rarity === "mythic", "RL16: лучшее надето автоматически");
+  const s5b = P.defaultState(); // RL<16 — без авто-надевания
+  s5b.autoFarm = true;
+  P.rollLoot = function (st, kind, tier) {
+    return P.applyLoot(st, P.generateItem("weapon", 4, "mythic", Math.random), tier);
+  };
+  const g5b = P.createGame(s5b, {});
+  for (let i = 0; i < 4000 && s5b.stats.wavesCleared === 0; i++) g5b.update(0.05);
+  P.rollLoot = origRoll;
+  assert(s5b.equipment.weapon.name === "Кухонный нож" && s5b.bag.length === 1, "без RL16 находка просто в сумке");
+
+  // опыт с RL3 идёт с бонусом +10%
+  const s6 = P.defaultState();
+  s6.prestige.rl = 3;
+  assert(P.expGain(s6, "boss") === 5.5, "RL3: босс даёт 5.5 опыта");
+  assert(P.expGain(s6, "norm") === 1.1, "RL3: волна даёт 1.1 опыта");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

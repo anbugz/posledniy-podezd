@@ -34,24 +34,29 @@
 
     function startWave() {
       const n = zone.wave;
-      combat.enemy = P.enemyStats(n, zdef.tier, zdef.wavesCap, zoneId);
+      // v4.2: круги 2+ (×1.15 за круг) — только при RL≥5
+      combat.enemy = P.enemyStats(n, zdef.tier, zdef.wavesCap, zoneId, P.cyclesOn(state));
       combat.enemy.maxHp = combat.enemy.hp;
       combat.phase = "fight";
       combat.elapsed = 0;
       combat.heroT = HERO_ATK_SEC;   // первый удар героя — через 0.5 с
       combat.enemyT = ENEMY_ATK_SEC; // первый удар врага — через 1 с
       // v4.1: «особая находка» — волна золотится, дроп +2 ступени редкости
-      combat.golden = Math.random() < (P.CONFIG.GOLDEN_CHANCE || 0.02);
+      // v4.2: RL≥12 — +1 п.п. к шансу
+      combat.golden = Math.random() < P.goldenChance(state);
       cb && cb({ type: "waveStart", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden });
     }
 
     function win() {
       const n = zone.wave;
-      const clearedCycle = n === zdef.wavesCap; // первое прохождение зоны — zoneClear один раз
+      // зачистка круга: босс 20-й волны. Повторные круги (cycle>0) — только
+      // при включённых кругах (RL≥5); без престижа zoneClear — один раз.
+      const c = P.waveCycle(n, zdef.wavesCap, P.cyclesOn(state));
+      const clearedCycle = c.nEff === zdef.wavesCap && (n === zdef.wavesCap || c.cycle > 0);
       cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden });
       // награды начисляет engine_game (там же лут и технологии)
       if (clearedCycle) {
-        cb && cb({ type: "zoneClear", zoneId, cycle: Math.floor(n / zdef.wavesCap) });
+        cb && cb({ type: "zoneClear", zoneId, cycle: c.cycle });
       }
       if (state.autoFarm) {
         zone.wave += 1;

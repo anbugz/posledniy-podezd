@@ -15,19 +15,20 @@
   };
 
   /* Абсолютный номер волны -> эффективная волна внутри круга и номер круга.
-     v3.6: кругов выше первого нет — после зачистки зоны волны повторяются
-     с базовой сложностью (без роста ×1.30 за круг). Полноценные круги
-     вернутся с престижем («возврат во времени»). */
-  P.waveCycle = function (n, cap) {
+     v4.2: круги 2+ возвращаются как престиж-механика — только при RL≥5
+     (cyclesOn = P.cyclesOn(state)); иначе после зачистки зоны волны
+     повторяются с базовой сложностью (cycle всегда 0). */
+  P.waveCycle = function (n, cap, cyclesOn) {
     cap = cap || 20;
     const nEff = ((n - 1) % cap) + 1;
-    return { nEff, cycle: 0 };
+    const cycle = cyclesOn ? Math.floor((n - 1) / cap) : 0;
+    return { nEff, cycle };
   };
 
   // Волна n (абсолютная) в зоне тира z -> {hp, dps, kind, name, cycle}
-  P.enemyStats = function (n, z, cap, zoneId) {
+  P.enemyStats = function (n, z, cap, zoneId, cyclesOn) {
     const E = P.ENEMY;
-    const c = P.waveCycle(n, cap);
+    const c = P.waveCycle(n, cap, cyclesOn);
     const loopMult = Math.pow(P.CONFIG.WAVE_LOOP_MULT, c.cycle);
     let hp = E.hpBase * Math.pow(E.hpGrow, c.nEff) * Math.pow(E.hpTier, z) * E.hpGlobal * loopMult;
     let dps = E.dpsBase * Math.pow(E.dpsGrow, c.nEff) * Math.pow(E.dpsTier, z) * loopMult;

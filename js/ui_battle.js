@@ -512,7 +512,7 @@
 
       // имя + волна (эффективная, с учётом кругов) — активная зона
       const zdef = P.ZONES[state.activeZone || "apartment"];
-      const c = P.waveCycle(state.zones[zdef.id].wave, zdef.wavesCap);
+      const c = P.waveCycle(state.zones[zdef.id].wave, zdef.wavesCap, P.cyclesOn(state));
       const waveLabel = c.cycle > 0 ? c.nEff + " (круг " + (c.cycle + 1) + ")" : String(c.nEff);
       const label = e.name + " (волна " + waveLabel + ")";
       ctx.font = "8px monospace";

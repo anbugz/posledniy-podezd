@@ -36,7 +36,8 @@
         const evMult = isEvent() ? P.EVENT.techChance : 1;
         state.tech += P.rollTech(ev.enemy.kind, nightMult * evMult);
         // v4.0: опыт выживания — валюта «Самоделок» (+1 волна / +2 элита / +5 босс)
-        state.exp = (state.exp || 0) + P.waveExp(ev.enemy.kind);
+        // v4.2: RL≥3 — +10% опыта
+        state.exp = (state.exp || 0) + P.expGain(state, ev.enemy.kind);
         // лут (v4.1): расписание гарант-дропов по слотам, золотая волна
         // (+2 ступени редкости), иначе обычный бросок
         let loot = null;
@@ -45,7 +46,11 @@
         if (gSlot) loot = P.rollGuaranteedDrop(state, gSlot, zdef.tier, Math.random, ev.wave);
         else if (ev.golden) loot = P.rollGoldenLoot(state, ev.enemy.kind, zdef.tier, Math.random, ev.wave);
         else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false, Math.random, ev.wave);
-        if (loot) game.lootQueue.push(loot);
+        if (loot) {
+          game.lootQueue.push(loot);
+          // v4.2: RL≥16 — авто-«Надеть лучшее» после каждой находки в сумку
+          if (loot.toBag && P.autoEquipBestOn(state)) P.equipBest(state);
+        }
         // авто-фарм: +1 к волне делает combat.win(); здесь только проверка
         // «стены»: если следующая волна непроходима — ничего, фармим дальше
         // (раньше тут был второй +1 — волна перепрыгивала босса 20-й,
@@ -63,6 +68,15 @@
       } else if (ev.type === "zoneClear") {
         // баннер зачистки собираем из частей: уник (v4.1) + открытие зоны/гейта
         const parts = [];
+        // v4.2: повторный круг (RL≥5) — очко времени за круг, без повторных гейтов
+        if (ev.cycle > 0) {
+          state.prestige = state.prestige || P.defaultPrestige();
+          state.prestige.circles = (state.prestige.circles || 0) + 1;
+          parts.push("🔄 КРУГ " + (ev.cycle + 1) + " ЗАЧИЩЕН! +1 очко времени при возврате.");
+          game.banner = { text: parts.join("  "), until: state.now + 12 };
+          hooks.onZoneClear && hooks.onZoneClear(ev);
+          return;
+        }
         // v4.1: уник с первого зачистки зоны (один раз)
         const uniq = P.rollUnique(state, zoneId, zdef.tier, Math.random, zone.wave);
         if (uniq) {
@@ -86,6 +100,7 @@
         if (zoneId === "district" && !state.upgradesUnlocked) {
           state.upgradesUnlocked = true;
           parts.push("🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления предметов (+5 → ∞).");
+          parts.push("⏳ В пыльном ларце найдены часы «Слава» — на базе доступен «Возврат в первый день».");
         }
         if (parts.length) game.banner = { text: parts.join("  "), until: state.now + 12 };
         hooks.onZoneClear && hooks.onZoneClear(ev);

@@ -441,3 +441,39 @@ canvas {
 /* v3.3: сгенерированные арты */.slot-img { width: 62%; height: 62%; object-fit: contain; pointer-events: none; }
 .item-tile img { width: 72%; height: 72%; object-fit: contain; pointer-events: none; }
 .tt-icon { width: 16px; height: 16px; vertical-align: -3px; }
+
+/* ---------- престиж «Возврат во времени» (v4.2) ---------- */
+.rl-chip {
+  font-size: 12px; color: #b48ee8; border: 1px solid #b48ee8;
+  border-radius: 999px; padding: 3px 10px; margin-left: 10px;
+  white-space: nowrap; cursor: default;
+}
+.rl-chip.hidden { display: none; }
+.prestige {
+  background: var(--panel); border: 1px solid #b48ee855; border-radius: var(--radius);
+  padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow);
+}
+.prestige.hidden { display: none; }
+.prestige h2 { font-size: 16px; color: #b48ee8; }
+.rl-table { margin-top: 10px; }
+.rl-row {
+  display: flex; gap: 10px; align-items: baseline; font-size: 12px;
+  color: var(--muted); padding: 4px 8px; border-radius: 8px;
+}
+.rl-row .rl-lvl { color: var(--text); font-weight: bold; min-width: 42px; }
+.rl-row.got { color: var(--text); background: #b48ee81a; }
+.rl-row.got .rl-lvl { color: #b48ee8; }
+.rl-row .rl-check { color: var(--green); margin-left: auto; }
+.prestige-btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.prestige-btns .buy {
+  flex: 1; min-width: 220px; padding: 10px; font-family: inherit; font-size: 12px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--blue);
+  border-radius: 10px; cursor: pointer; transition: all 0.15s ease;
+}
+.prestige-btns .buy:hover:not(:disabled) { background: #28304a; }
+.prestige-btns .buy:disabled { opacity: 0.4; cursor: not-allowed; }
+.prestige-go { border-color: #b48ee8 !important; color: #b48ee8 !important; }
+.prestige-go:hover:not(:disabled) { background: #b48ee822 !important; }
+.modal-btns { display: flex; gap: 10px; }
+.modal-btn.danger { border-color: #b48ee8; color: #b48ee8; }
+.modal-btn.danger:hover { background: #b48ee822; }

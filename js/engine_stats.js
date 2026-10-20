@@ -29,6 +29,10 @@
   P.waveExp = function (kind) {
     return kind === "boss" ? 5 : kind === "elite" ? 2 : 1;
   };
+  /* Начисление опыта с учётом RL-бонуса (RL≥3: +10%, v4.2). */
+  P.expGain = function (state, kind) {
+    return P.waveExp(kind) * P.expMult(state);
+  };
   P.expAvail = function (state) {
     return Math.max(0, (state.exp || 0) - (state.expSpent || 0));
   };
@@ -90,9 +94,11 @@
     }
     const apt = state.zones.apartment.level;
     const t = state.training || { str: 0, vit: 0, def: 0, acc: 0 };
+    // v4.2: Уровень времени (престиж) — +5% DPS и +5% HP за каждый RL навсегда
+    const rlMult = P.rlMult(state);
 
-    const dps = dpsItems * (1 + P.TRAIN_EFFECT.str * t.str);
-    let hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit));
+    const dps = dpsItems * (1 + P.TRAIN_EFFECT.str * t.str) * rlMult;
+    let hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit) * rlMult);
     armor += P.TRAIN_EFFECT.def * t.def;
     crit += P.TRAIN_EFFECT.acc * t.acc;
     crit = Math.min(crit, 0.60);
@@ -104,7 +110,8 @@
 
     // аффиксы: припасы с волн, реген в бою, крит-урон, двойной удар
     const af = countAffixes(eq);
-    const supMult = 1 + 0.15 * af.stockpile;
+    // v4.2: RL≥8 — +15% припасов с волн (мультипликативно к аффиксам)
+    const supMult = (1 + 0.15 * af.stockpile) * P.rlSuppliesMult(state);
     const regenCombat = 0.01 * af.regen;           // доля hpMax/сек в бою
     const critDmg = 2.0 + 0.1 * af.critdmg;        // базовый крит ×2
     const doubleHit = 0.1 * af.double;             // шанс второго удара
@@ -113,6 +120,7 @@
     return {
       dps: dpsSnack, dpsItems, hpMax, armor, crit, dr, dpsEff,
       supMult, regenCombat, critDmg, doubleHit, snack,
+      rl: P.rl(state), rlMult,
       training: Object.assign({}, t),
     };
   };
