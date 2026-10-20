@@ -161,6 +161,51 @@ function approx(a, b, eps, msg) {
   assert(!P.rerollAffixes(poor, "bag", 0), "без технологий не перековать");
 }
 
+// ---------- pity-таймер на оружие (v4.5: страховка от «сухих» раскладов) ----------
+{
+  const state = P.defaultState();
+  const unlucky = () => 0.999; // шанс 9% таким rng не пройти никогда
+  state.pityWeapon = P.CONFIG.PITY_WEAPON_WAVES;
+  // pity в приоритете даже на волне расписания (раньше такие волны его обходили)
+  const res = P.rollWaveLoot(state, "norm", 1, false, false, unlucky, 8, 8);
+  assert(res && res.pity && res.item.slot === "weapon", "pity: оружие даже на волне гарант-дропа");
+  assert(state.pityWeapon === 0, "pity: выпадение оружия сбрасывает таймер");
+  // ниже порога — работает обычное расписание
+  state.pityWeapon = P.CONFIG.PITY_WEAPON_WAVES - 1;
+  const sched = P.rollWaveLoot(state, "norm", 1, false, false, unlucky, 8, 8);
+  assert(sched && !sched.pity && sched.item.slot === "boots", "ниже порога — обычный гарант-дроп");
+  // ниже порога вне расписания — обычный шанс решает
+  assert(P.rollWaveLoot(state, "norm", 1, false, false, unlucky, 9, 9) === null, "без pity обычный шанс решает");
+  // не-оружие таймер НЕ сбрасывает
+  state.pityWeapon = 5;
+  P.rollGuaranteedDrop(state, "armor", 1, () => 0.5, 5);
+  assert(state.pityWeapon === 5, "не-оружие таймер не сбрасывает");
+  // оружие с золотой волны тоже сбрасывает
+  state.pityWeapon = 7;
+  P.rollGoldenLoot(state, "boss", 1, () => 0, 5); // rng=0 -> первый слот = weapon
+  assert(state.pityWeapon === 0, "оружие с золотой волны сбрасывает таймер");
+}
+
+// ---------- полная сумка: лучшая находка вытесняет худшую (v4.5) ----------
+{
+  const state = P.defaultState();
+  // забиваем сумку мусором
+  while (state.bag.length < P.bagSize(state)) {
+    state.bag.push({ slot: "boots", rarity: "common", tier: 1, name: "Мусор", stats: { hp: 1 }, affixes: [], lvl: 0 });
+  }
+  const good = P.generateItem("weapon", 4, "epic", () => 0.5, 10);
+  const res = P.applyLoot(state, good, 4);
+  assert(res.toBag && res.replaced, "лучшая находка вытесняет худшую из полной сумки");
+  assert(state.bag.indexOf(good) >= 0, "находка осталась в сумке");
+  assert(state.supplies > 0, "худшая продана за припасы");
+  const junk = { slot: "boots", rarity: "common", tier: 1, name: "Хлам", stats: { hp: 1 }, affixes: [], lvl: 0 };
+  const sup0 = state.supplies;
+  const res2 = P.applyLoot(state, junk, 1);
+  assert(!res2.toBag && !res2.replaced, "хлам по-прежнему авто-продаётся");
+  assert(state.bag.length === P.bagSize(state), "сумка не растёт сверх лимита");
+  assert(state.supplies > sup0, "хлам продан");
+}
+
 // ---------- waves: ослабленные враги, круги ----------
 {
   const e1 = P.enemyStats(1, 1, 20);
@@ -261,13 +306,14 @@ function approx(a, b, eps, msg) {
   const gained = P.sellAllCommon(state);
   assert(gained > 0, "продажа серого даёт припасы");
   assert(state.bag.every((x) => x.rarity !== "common"), "серого в сумке не осталось");
-  // переполнение: сумка полная -> авто-продажа
+  // переполнение: находка хуже худшей в сумке -> авто-продажа (v4.5: лучшая — вытесняет)
   const full = P.defaultState();
   full.bagSize = 3;
-  for (let i = 0; i < 3; i++) P.applyLoot(full, P.generateItem("boots", 1, "common", Math.random), 1);
+  for (let i = 0; i < 3; i++) P.applyLoot(full, P.generateItem("boots", 2, "epic", Math.random), 2);
   const s0 = full.supplies;
-  const overflow = P.applyLoot(full, P.generateItem("boots", 1, "common", Math.random), 1);
-  assert(!overflow.toBag && full.supplies > s0, "переполнение сумки -> авто-продажа");
+  const junk = { slot: "boots", rarity: "common", tier: 1, name: "Хлам", stats: { hp: 1 }, affixes: [], lvl: 0 };
+  const overflow = P.applyLoot(full, junk, 1);
+  assert(!overflow.toBag && full.supplies > s0, "переполнение сумки -> авто-продажа хлама");
   assert(full.bag.length === 3, "сумка не растёт за пределы");
 }
 

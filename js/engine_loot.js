@@ -44,7 +44,8 @@
   /* Дроп с волны. Возвращает результат для UI или null.
      offline=true — шанс ×0.5 (ТЗ §6). Предмет уходит в сумку либо
      авто-продаётся при переполнении.
-     wave (абсолютный номер) — множит бюджет предмета: лут растёт с волной. */
+     wave (абсолютный номер) — множит бюджет предмета: лут растёт с волной.
+     Внимание: pity-таймер оружия (v4.5) живёт уровнем выше — в rollWaveLoot. */
   P.rollLoot = function (state, kind, tier, offline, rng, wave) {
     rng = rng || Math.random;
     let chance = LOOT_CHANCE;
@@ -116,10 +117,33 @@
     return res;
   };
 
+  /* Лут за победу на волне (v4.5): единая точка для онлайна и оффлайна.
+     Приоритет: pity-таймер (оружие) > расписание гарант-дропов > золото > обычный
+     бросок. Раньше pity проверялся только в rollLoot — но волны расписания
+     (3/5/8/11/14/17) его обходили, и герой, застрявший на такой волне,
+     оружие не получал никогда. */
+  P.rollWaveLoot = function (state, kind, tier, golden, offline, rng, wave, nEff) {
+    rng = rng || Math.random;
+    if ((state.pityWeapon || 0) >= P.CONFIG.PITY_WEAPON_WAVES) {
+      const pw = P.rollGuaranteedDrop(state, "weapon", tier, rng, wave);
+      if (pw) pw.pity = true;
+      return pw;
+    }
+    if (P.GUARANTEED_DROPS[nEff]) return P.rollGuaranteedDrop(state, P.GUARANTEED_DROPS[nEff], tier, rng, wave);
+    if (golden) return P.rollGoldenLoot(state, kind, tier, rng, wave);
+    return P.rollLoot(state, kind, tier, offline, rng, wave);
+  };
+
   /* Положить предмет в сумку; при переполнении — авто-продажа.
-     state.autoSell > 0 — продавать всё не выше порога редкости сразу. */
+     state.autoSell > 0 — продавать всё не выше порога редкости сразу.
+     v4.5: если сумка полна, но находка ЛУЧШЕ худшей вещи в сумке —
+     продаём худшую, а находку кладём (иначе полная сумка мусора
+     навсегда замораживала прогресс: всё новое уходило в продажу). */
   P.applyLoot = function (state, item, tier) {
     state.stats.itemsFound++;
+    // v4.5: любое выпавшее оружие сбрасывает pity-таймер (даже авто-проданное:
+    // RNG оружие дал — засуха прервана)
+    if (item.slot === "weapon") state.pityWeapon = 0;
     // v4.2: запоминаем лучшую редкость находки цикла (очки времени при престиже)
     if (state.prestige) {
       const ri = P.RARITY_ORDER.indexOf(item.rarity);
@@ -134,6 +158,19 @@
     if (state.bag.length < P.bagSize(state)) {
       state.bag.push(item);
       return { toBag: true, item };
+    }
+    // сумка полна: если находка лучше худшей — вытесняем худшую в продажу
+    let worstIdx = 0, worstScore = Infinity;
+    for (let i = 0; i < state.bag.length; i++) {
+      const sc = P.itemScore(state.bag[i]);
+      if (sc < worstScore) { worstScore = sc; worstIdx = i; }
+    }
+    if (P.itemScore(item) > worstScore) {
+      const worst = state.bag[worstIdx];
+      const worstValue = Math.max(1, Math.floor(worstScore * SELL_RATIO / 4));
+      state.supplies += worstValue;
+      state.bag[worstIdx] = item;
+      return { toBag: true, item, replaced: worst, soldFor: worstValue };
     }
     state.supplies += sellValue;
     return { toBag: false, item, soldFor: sellValue };

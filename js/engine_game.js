@@ -42,12 +42,11 @@
         P.pathExpGain(state, ev.enemy.kind);
         // лут (v4.1): расписание гарант-дропов по слотам, золотая волна
         // (+2 ступени редкости), иначе обычный бросок
-        let loot = null;
+        // v4.5: каждая волна без оружия копит pity-таймер (сброс — в applyLoot);
+        // приоритет бросков — в rollWaveLoot
+        state.pityWeapon = (state.pityWeapon || 0) + 1;
         const nEff = P.waveCycle(ev.wave, zdef.wavesCap).nEff;
-        const gSlot = P.GUARANTEED_DROPS[nEff];
-        if (gSlot) loot = P.rollGuaranteedDrop(state, gSlot, zdef.tier, Math.random, ev.wave);
-        else if (ev.golden) loot = P.rollGoldenLoot(state, ev.enemy.kind, zdef.tier, Math.random, ev.wave);
-        else loot = P.rollLoot(state, ev.enemy.kind, zdef.tier, false, Math.random, ev.wave);
+        const loot = P.rollWaveLoot(state, ev.enemy.kind, zdef.tier, ev.golden, false, Math.random, ev.wave, nEff);
         if (loot) {
           game.lootQueue.push(loot);
           // v4.2: RL≥16 — авто-«Надеть лучшее» после каждой находки в сумку

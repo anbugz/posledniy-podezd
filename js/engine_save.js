@@ -43,6 +43,7 @@
       hubUnlocked: false,    // зачистка Дома -> база/хаб
       veteranUnlocked: false, // зачистка Двора -> «Самоделки»
       upgradesUnlocked: false, // зачистка Района -> улучшение предметов
+      pityWeapon: 0,         // v4.5: волн подряд без оружия (pity-таймер)
       skills,
       dayNight: { phase: "day", phaseEndsAt: 180 },
       event: { nextAt: 600, activeUntil: 0 },
@@ -193,14 +194,11 @@
       report.exp = (report.exp || 0) + P.expGain(state, enemy.kind);
       P.pathExpGain(state, enemy.kind); // v4.3: путь качается и оффлайн
       // гарант-дропы по расписанию (v4.1), иначе обычный бросок
-      const gSlot = P.GUARANTEED_DROPS[P.waveCycle(zone.wave, zdef.wavesCap).nEff];
-      if (gSlot) {
-        const loot = P.rollGuaranteedDrop(state, gSlot, zdef.tier, Math.random, zone.wave);
-        if (loot) report.items.push(loot);
-      } else {
-        const loot = P.rollLoot(state, enemy.kind, zdef.tier, true, Math.random, zone.wave);
-        if (loot) report.items.push(loot);
-      }
+      // v4.5: pity-таймер копится и оффлайн; приоритет бросков — в rollWaveLoot
+      state.pityWeapon = (state.pityWeapon || 0) + 1;
+      const nEffLoot = P.waveCycle(zone.wave, zdef.wavesCap).nEff;
+      const loot = P.rollWaveLoot(state, enemy.kind, zdef.tier, false, true, Math.random, zone.wave, nEffLoot);
+      if (loot) report.items.push(loot);
       // зачистка зоны оффлайн (первое прохождение) -> открываем следующую зону + уник
       if (zone.wave === zdef.wavesCap && zdef.next && state.zones[zdef.next] && !state.zones[zdef.next].unlocked) {
         state.zones[zdef.next].unlocked = true;
