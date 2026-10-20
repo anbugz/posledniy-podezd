@@ -71,9 +71,53 @@
     const flashes = [];    // вспышки выстрелов {x, y, life}
     const particles = [];  // искры/осколки {x, y, vx, vy, color, life}
     const tracers = [];    // трассеры выстрелов {x1, y1, x2, y2, life}
+    const ambient = [];    // амбиент-частицы зоны {x, y, vx, vy, color, size, alpha, life, wob}
     let shakeAt = -999, shakeMag = 0; // тряска экрана (крит, смерть босса)
     let enemyAnimHit = 0;
     let lastTickHadEnemy = false;
+    let hitStopUntil = -999;          // v4.7: микрозамирание частиц на крите
+    let screenFlash = null;           // v4.7: белая вспышка на весь экран (смерть босса)
+    // v4.7: смерть/воскрешение героя и босс-интро — переходы фаз
+    let prevPhase = "gap", knockoutAt = -999, reviveAt = -999;
+
+    /* Амбиент зон (v4.7): пыль/листья/искры/пепел — атмосфера за копейки. */
+    const AMBIENT = {
+      apartment: { color: "#c8b46a", every: 9,  vx: [-0.25, 0.1], vy: [0.1, 0.3],  size: 1, alpha: 0.5, from: "top" },
+      entrance:  { color: "#8a94a8", every: 12, vx: [-0.15, 0.1], vy: [0.08, 0.2], size: 1, alpha: 0.4, from: "top" },
+      yard:      { color: "#7a9a4d", every: 14, vx: [-0.8, -0.3], vy: [0.15, 0.4], size: 2, alpha: 0.6, from: "right" },
+      house:     { color: "#e87d4a", every: 8,  vx: [-0.1, 0.2],  vy: [-0.7, -0.3], size: 2, alpha: 0.7, from: "bottom" },
+      district:  { color: "#aab4c8", every: 10, vx: [-0.45, -0.1], vy: [0.2, 0.45], size: 2, alpha: 0.55, from: "top" },
+    };
+    let lastAmbientTick = -1;
+    function spawnAmbient(t, zoneId) {
+      const cfg = AMBIENT[zoneId];
+      if (!cfg) return;
+      const tick = Math.floor(t);
+      if (tick === lastAmbientTick || tick % cfg.every !== 0) return;
+      lastAmbientTick = tick;
+      if (ambient.length > 40) return;
+      const rnd = (r) => r[0] + Math.random() * (r[1] - r[0]);
+      ambient.push({
+        x: cfg.from === "right" ? W + 4 : Math.random() * W,
+        y: cfg.from === "bottom" ? H + 4 : cfg.from === "right" ? 40 + Math.random() * 160 : -4 + Math.random() * 40,
+        vx: rnd(cfg.vx), vy: rnd(cfg.vy),
+        color: cfg.color, size: cfg.size, alpha: cfg.alpha,
+        life: 150 + Math.random() * 90, wob: Math.random() * Math.PI * 2,
+      });
+    }
+    function drawAmbient(t) {
+      for (let i = ambient.length - 1; i >= 0; i--) {
+        const p = ambient[i];
+        p.x += p.vx + Math.sin(t / 14 + p.wob) * 0.15;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0 || p.x < -8 || p.y > H + 8 || p.y < -8) { ambient.splice(i, 1); continue; }
+        ctx.globalAlpha = p.alpha * Math.min(1, p.life / 40);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+    }
 
     function spawnParticles(x, y, color, n, spread) {
       for (let i = 0; i < n; i++) {
@@ -357,7 +401,11 @@
       const gy = groundY(zoneId);
       const x = HERO_X + lunge + hurtShake, y = gy;
       const dead = game.combat.phase === "knockout";
-      const alpha = dead ? 0.4 + 0.2 * Math.sin(t / 4) : 1;
+      // v4.7: падение при нокауте (крен назад ~0.35 с), вставание после (~0.4 с)
+      let fallTilt = 0;
+      if (dead) fallTilt = -1.35 * easeOut(Math.min((lastT - knockoutAt) / 7, 1));
+      else if (lastT - reviveAt < 8) fallTilt = -1.35 * (1 - easeOut((lastT - reviveAt) / 8));
+      const alpha = dead ? 0.85 : 1;
 
       // спрайт героя (сгенерированный); v4.6: версия без оружия — оружие рисуем
       // отдельно по надетому предмету. Пока не загружено — кодом ниже.
@@ -368,13 +416,21 @@
         const hh = 80 * breath;
         const hw = hh * (heroArt.naturalWidth / heroArt.naturalHeight); // пропорции спрайта
         ctx.globalAlpha = alpha;
-        ctx.drawImage(heroArt, x - hw / 2, y - hh, hw, hh);
+        if (fallTilt !== 0) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(fallTilt);
+          ctx.drawImage(heroArt, -hw / 2, -hh, hw, hh);
+          ctx.restore();
+        } else {
+          ctx.drawImage(heroArt, x - hw / 2, y - hh, hw, hh);
+        }
         ctx.globalAlpha = 1;
 
         // v4.6: надетое оружие в руках (иконка по семейству). Иконки стволов
         // смотрят влево — зеркалим. Хват — правая рука спрайта.
         const wpn = state.equipment.weapon;
-        const wArt = wpn && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
+        const wArt = wpn && Math.abs(fallTilt) < 0.05 && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
         if (wArt) {
           const hx = x + 10, hy = y - 38;
           let rot, recoil = 0;
@@ -493,10 +549,11 @@
     function drawEnemy(t) {
       const e = game.combat.enemy;
       if (!e) { drawDying(t); return; }
-      // появление: въезжает справа за 0.4 с; атака: наскок к герою 0.4 с
-      const spawnP = (lastT - enemySpawnAt) / 8;
+      // появление: въезжает справа за 0.4 с (босс — 0.8 с и издалека); атака: наскок к герою 0.4 с
+      const isBoss = e.kind === "boss";
+      const spawnP = (lastT - enemySpawnAt) / (isBoss ? 16 : 8);
       const atkP = (lastT - enemyAtkAt) / 8;
-      const slideIn = spawnP <= 1 ? (1 - easeOut(spawnP)) * 70 : 0;
+      const slideIn = spawnP <= 1 ? (1 - easeOut(spawnP)) * (isBoss ? 110 : 70) : 0;
       const lunge = atkP <= 1 ? swing(atkP) * 20 : 0;
       const zoneIdE = state.activeZone || "apartment";
       const gy = groundY(zoneIdE);
@@ -642,10 +699,13 @@
     }
 
     function drawFloatersAndFlashes() {
+      // v4.7 hit-stop: на крите частицы/флоутеры замирают на пару кадров —
+      // микропауза читается как вес удара
+      const frozen = lastT < hitStopUntil;
       // трассеры выстрелов
       for (let i = tracers.length - 1; i >= 0; i--) {
         const tr = tracers[i];
-        tr.life--;
+        if (!frozen) tr.life--;
         if (tr.life <= 0) { tracers.splice(i, 1); continue; }
         ctx.globalAlpha = tr.life / 4;
         ctx.strokeStyle = "#ffe87d";
@@ -660,7 +720,7 @@
       // искры/осколки с гравитацией
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+        if (!frozen) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; }
         if (p.life <= 0) { particles.splice(i, 1); continue; }
         ctx.globalAlpha = Math.min(1, p.life / 14);
         ctx.fillStyle = p.color;
@@ -671,7 +731,7 @@
       ctx.textAlign = "center";
       for (let i = floaters.length - 1; i >= 0; i--) {
         const f = floaters[i];
-        f.y -= 0.7; f.life--;
+        if (!frozen) { f.y -= 0.7; f.life--; }
         if (f.life <= 0) { floaters.splice(i, 1); continue; }
         ctx.globalAlpha = Math.min(1, f.life / 25);
         ctx.fillStyle = f.color;
@@ -680,13 +740,24 @@
       ctx.globalAlpha = 1;
       for (let i = flashes.length - 1; i >= 0; i--) {
         const fl = flashes[i];
-        fl.life--;
+        if (!frozen) fl.life--;
         if (fl.life <= 0) { flashes.splice(i, 1); continue; }
         ctx.globalAlpha = fl.life / 8;
         ctx.fillStyle = "#ffe87d";
         ctx.fillRect(fl.x - 3, fl.y - 3, 7, 7);
       }
       ctx.globalAlpha = 1;
+      // v4.7: белая вспышка на весь экран (смерть босса)
+      if (screenFlash) {
+        screenFlash.life--;
+        if (screenFlash.life <= 0) screenFlash = null;
+        else {
+          ctx.globalAlpha = (screenFlash.life / screenFlash.max) * 0.5;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, W, H);
+          ctx.globalAlpha = 1;
+        }
+      }
     }
 
     function drawStatus(t) {
@@ -718,6 +789,16 @@
       /* вызывать из главного цикла */
       render(t) {
         lastT = t;
+        // v4.7: переходы фаз — падение/воскрешение героя
+        const ph = game.combat.phase;
+        if (ph === "knockout" && prevPhase !== "knockout") {
+          knockoutAt = t;
+          shake(5);
+          spawnParticles(HERO_X, groundY(state.activeZone || "apartment") - 30, "#e85e5e", 8, 1.2);
+        } else if (ph !== "knockout" && prevPhase === "knockout") {
+          reviveAt = t;
+        }
+        prevPhase = ph;
         // тряска экрана (крит / смерть босса): сдвиг всей сцены, статус не трясём
         const shakeP = (t - shakeAt) / 5;
         const shaking = shakeP <= 1;
@@ -727,6 +808,8 @@
           ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
         }
         drawRoom(t);
+        spawnAmbient(t, state.activeZone);
+        drawAmbient(t);
         drawHero(t);
         drawEnemy(t);
         drawFloatersAndFlashes();
@@ -752,7 +835,7 @@
         addFloater(ENEMY_X + (Math.random() - 0.5) * 20, gy - 80, "-" + dmg, ev.crit ? "#ffe87d" : "#e8e4f0");
         const fam = P.weaponFamily(state.equipment.weapon) || "knife";
         if (fam === "gun" || fam === "rifle") {
-          // выстрел: вспышка у дула + трассер до врага + гильза (v4.6)
+          // выстрел: вспышка у дула + трассер до врага + гильза (v4.6) + дым (v4.7)
           const mx = HERO_X + 10 + (fam === "rifle" ? 48 : 30);
           flashes.push({ x: mx, y: gy - 38, life: fam === "rifle" ? 10 : 8 });
           tracers.push({ x1: mx + 2, y1: gy - 38, x2: ENEMY_X - 20, y2: gy - 52, life: 4 });
@@ -761,10 +844,21 @@
             vx: -(0.8 + Math.random() * 0.6), vy: -(1.6 + Math.random() * 0.8),
             color: "#d8a84e", life: 22,
           });
+          for (let s = 0; s < 2; s++) {
+            particles.push({
+              x: mx, y: gy - 42,
+              vx: 0.2 + Math.random() * 0.2, vy: -(0.3 + Math.random() * 0.2),
+              color: "#9aa2b0", life: 30,
+            });
+          }
         }
-        // искры при попадании; крит — больше и с тряской экрана
+        // искры при попадании; крит — больше, с тряской экрана и хит-стопом (v4.7)
         spawnParticles(ENEMY_X - 10, gy - 60, ev.crit ? "#ffe87d" : "#c0c8d8", ev.crit ? 9 : 4, ev.crit ? 1.6 : 1);
-        if (ev.crit) shake(4);
+        if (ev.crit) {
+          shake(4);
+          hitStopUntil = lastT + 2;
+          addFloater(ENEMY_X, gy - 100, "КРИТ!", "#ffe87d");
+        }
         heroAtkAt = lastT;
         enemyAnimHit = 4;
       },
@@ -777,16 +871,22 @@
         enemyAtkAt = lastT;
         heroHurtAt = lastT;
       },
-      /* враг появился — анимация въезда справа */
-      waveStart() { enemySpawnAt = lastT; },
-      /* враг убит — взрыв частиц + падение; босс — тряска экрана */
+      /* враг появился — анимация въезда справа; босс — интро с объявлением (v4.7) */
+      waveStart(ev) {
+        enemySpawnAt = lastT;
+        if (ev && ev.enemy && ev.enemy.kind === "boss") {
+          shake(4);
+          addFloater(ENEMY_X, groundY(state.activeZone || "apartment") - 130, "☠ БОСС: " + ev.enemy.name, "#e85e5e");
+        }
+      },
+      /* враг убит — взрыв частиц + падение; босс — тряска экрана и белая вспышка */
       waveWin(ev) {
         const gy = groundY(ev.zoneId || state.activeZone || "apartment");
         const kind = ev.enemy ? ev.enemy.kind : "grunt";
         dyingEnemy = { kind, zoneId: ev.zoneId || state.activeZone, h: kind === "boss" ? 118 : kind === "elite" ? 92 : 70, at: lastT };
         const col = kind === "boss" ? "#c0c8d8" : kind === "elite" ? "#9a5ad0" : "#7a9a4d";
         spawnParticles(ENEMY_X, gy - 50, col, kind === "boss" ? 20 : 12, 1.8);
-        if (kind === "boss") shake(6);
+        if (kind === "boss") { shake(6); screenFlash = { life: 6, max: 6 }; }
       },
       addFloater,
     };

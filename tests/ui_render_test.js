@@ -22,14 +22,14 @@ global.Image = class {
 
 // --- мок ctx: записываем вызовы ---
 function makeCtx() {
-  const calls = { drawImage: [], fillRect: [], fillText: [], gradients: [] };
+  const calls = { drawImage: [], fillRect: [], fillText: [], gradients: [], rotate: [] };
   const ctx = {
     calls,
     drawImage(...a) { calls.drawImage.push(a); },
     fillRect(...a) { calls.fillRect.push({ args: a, style: ctx.fillStyle, alpha: ctx.globalAlpha }); },
     strokeRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
     arc() {}, ellipse() {}, fill() {}, save() {}, restore() {},
-    translate() {}, rotate() {}, scale() {},
+    translate() {}, rotate(...a) { calls.rotate.push(a[0]); }, scale() {},
     createRadialGradient(...a) {
       const g = { stops: [], addColorStop(o, c) { g.stops.push([o, c]); } };
       calls.gradients.push(g);
@@ -175,6 +175,46 @@ assert(!vig2, "при полном HP виньетки нет");
 const before = ctx.calls.fillRect.length;
 view.heroHit({ dmg: 10, crit: false });
 assert(true, "heroHit от винтовки не падает");
+
+// ===================== v4.7 «Кинематограф» =====================
+
+// --- падение героя: фаза knockout → герой заваливается (rotate < 0) ---
+game.combat.phase = "knockout";
+ctx.calls.rotate.length = 0;
+view.render(200);
+view.render(201);
+assert(ctx.calls.rotate.some((a) => a < -0.1), "knockout: герой падает (rotate отрицательный)");
+// воскрешение: выходим из knockout — герой ещё поднимается
+game.combat.phase = "gap";
+ctx.calls.rotate.length = 0;
+view.render(202);
+view.render(203);
+assert(ctx.calls.rotate.some((a) => a < -0.1), "воскрешение: герой поднимается с земли");
+
+// --- крит: флоутер «КРИТ!» + дым из ствола ---
+state.equipment.weapon = P.generateItem("weapon", 4, "epic", Math.random, 3);
+state.equipment.weapon.family = "rifle";
+ctx.calls.fillText.length = 0;
+ctx.calls.fillRect.length = 0;
+view.heroHit({ dmg: 10, crit: true });
+view.render(210);
+assert(ctx.calls.fillText.some((a) => a[0] === "КРИТ!"), "крит: флоутер «КРИТ!»");
+assert(ctx.calls.fillRect.some((r) => r.style === "#9aa2b0"), "выстрел: дым из ствола");
+
+// --- босс-интро: объявление + (при смерти) белая вспышка ---
+ctx.calls.fillText.length = 0;
+view.waveStart({ enemy: { kind: "boss", name: "Тестобосс" } });
+view.render(220);
+assert(ctx.calls.fillText.some((a) => String(a[0]).includes("☠ БОСС: Тестобосс")), "босс-интро: объявление имени");
+ctx.calls.fillRect.length = 0;
+view.waveWin({ enemy: { kind: "boss" }, zoneId: "district" });
+view.render(221);
+assert(ctx.calls.fillRect.some((r) => r.style === "#ffffff" && r.args[2] > 300), "смерть босса: белая вспышка на экран");
+
+// --- амбиент Района: пепел в воздухе ---
+ctx.calls.fillRect.length = 0;
+for (let t = 300; t < 330; t++) view.render(t);
+assert(ctx.calls.fillRect.some((r) => r.style === "#aab4c8"), "амбиент Района: частицы пепла рисуются");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
