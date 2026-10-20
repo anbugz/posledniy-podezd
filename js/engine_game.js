@@ -101,7 +101,7 @@
         }
         if (zoneId === "district" && !state.upgradesUnlocked) {
           state.upgradesUnlocked = true;
-          parts.push("🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления предметов (+5 → ∞).");
+          parts.push("🔧 РАЙОН ЗАЧИЩЕН! Оружейник снимает предел усиления (+5 → ∞) и берётся за перековку аффиксов.");
           parts.push("⏳ В пыльном ларце найдены часы «Слава» — на базе доступен «Возврат в первый день».");
         }
         if (parts.length) game.banner = { text: parts.join("  "), until: state.now + 12 };

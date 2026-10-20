@@ -119,6 +119,48 @@ function approx(a, b, eps, msg) {
   assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник снимает предел +5");
 }
 
+// ---------- перековка аффиксов (v4.4: Оружейник после Района) ----------
+{
+  const state = P.defaultState();
+  state.tech = 100000;
+  state.bag.push(P.generateItem("armor", 2, "epic", Math.random));
+  const item = state.bag[0];
+  assert(item.affixes.length === 3, "эпик стартует с 3 аффиксами");
+  assert(!P.rerollAffixes(state, "bag", 0), "без Оружейника перековка закрыта");
+  state.upgradesUnlocked = true;
+  // обычному предмету ковать нечего
+  state.bag.push(P.generateItem("boots", 1, "common", Math.random));
+  assert(!P.rerollAffixes(state, "bag", 1), "обычный предмет не куется");
+  // уник не куется
+  const un = P.generateItem("weapon", 1, "rare", Math.random);
+  un.unique = true;
+  state.bag.push(un);
+  assert(!P.rerollAffixes(state, "bag", 2), "уник не куется");
+  // успешная перековка: tech списан, счётчик вырос, набор валиден
+  const tech0 = state.tech;
+  const cost0 = P.rerollCost(item);
+  assert(P.rerollAffixes(state, "bag", 0), "перековка за технологии");
+  assert(state.tech === tech0 - cost0, "технологии списаны ровно по цене");
+  assert(item.forges === 1, "счётчик перековок вырос");
+  assert(P.rerollCost(item) > cost0, "цена растёт с каждой перековкой");
+  assert(item.affixes.length === 3, "количество аффиксов сохранено");
+  assert(new Set(item.affixes).size === 3, "аффиксы без повторов");
+  assert(item.affixes.every((id) => P.AFFIXES.some((a) => a.id === id)), "все аффиксы валидны");
+  // детерминированный реролл: rng=0 берёт первые из пула
+  const zero = () => 0;
+  assert(P.rerollAffixes(state, "bag", 0, zero), "вторая перековка");
+  assert(item.affixes.join() === "stockpile,regen,critdmg", "rng определяет набор");
+  // надетый предмет тоже куется
+  state.equipment.helmet = P.generateItem("helmet", 1, "rare", Math.random);
+  assert(P.rerollAffixes(state, "equip", "helmet"), "перековка надетого предмета");
+  // без технологий — нельзя
+  const poor = P.defaultState();
+  poor.upgradesUnlocked = true;
+  poor.tech = 0;
+  poor.bag.push(P.generateItem("gloves", 1, "rare", Math.random));
+  assert(!P.rerollAffixes(poor, "bag", 0), "без технологий не перековать");
+}
+
 // ---------- waves: ослабленные враги, круги ----------
 {
   const e1 = P.enemyStats(1, 1, 20);

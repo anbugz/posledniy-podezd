@@ -442,6 +442,37 @@
     });
 
     function renderDetail() {
+      // перековка аффиксов у Оружейника (v4.4) — общая кнопка для обеих веток
+      const addRerollBtn = (btns, item, where, key) => {
+        const want = P.AFFIX_COUNT[item.rarity] || 0;
+        if (!want) return; // обычным нечего ковать
+        const bRe = document.createElement("button");
+        bRe.className = "b-reroll";
+        const cost = P.rerollCost(item);
+        if (item.unique) {
+          bRe.textContent = "Перековка недоступна (уник)";
+          bRe.disabled = true;
+          bRe.title = "Аффиксы уникальной находки — часть её истории";
+        } else if (!state.upgradesUnlocked) {
+          bRe.textContent = "Перековка — Оружейник (Район)";
+          bRe.disabled = true;
+          bRe.title = "Откроется зачисткой Района (волна 20)";
+        } else {
+          bRe.textContent = "Перековать аффиксы — " + fmt(cost) + " 🔧";
+          bRe.disabled = state.tech < cost;
+          bRe.title = "Случайно заменяет все аффиксы предмета; цена растёт с каждой перековкой" +
+            (item.forges ? " (уже перековано: " + item.forges + ")" : "");
+          bRe.addEventListener("click", () => {
+            if (P.rerollAffixes(state, where, key)) {
+              battleView.addFloater(240, 120, "🔨 Аффиксы перекованы!", "#b48ee8");
+              forceHeavy = true;
+              refresh();
+              renderInventory();
+            }
+          });
+        }
+        btns.appendChild(bRe);
+      };
       // выбран слот куклы — показываем надетый предмет
       if (selectedEquip) {
         const item = state.equipment[selectedEquip];
@@ -488,6 +519,7 @@
             });
             btns.appendChild(bUpg);
           }
+          addRerollBtn(btns, item, "equip", selectedEquip);
           el.invDetail.appendChild(btns);
           return;
         }
@@ -558,6 +590,7 @@
         });
         btns.appendChild(bUpg);
       }
+      addRerollBtn(btns, item, "bag", selectedBagIdx);
       el.invDetail.appendChild(btns);
     }
 

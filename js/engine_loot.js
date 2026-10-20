@@ -232,6 +232,37 @@
     return true;
   };
 
+  /* Перековка аффиксов у Оружейника (v4.4): реролл ВСЕХ аффиксов предмета
+     за технологии. Гейт — зачистка Района (upgradesUnlocked), как и +5+.
+     Цена растёт с каждой перековкой этого предмета (item.forges) —
+     тормоз против спама до «идеального» набора. Уники не куются:
+     их аффиксы — часть истории предмета. */
+  P.REROLL_GROW = 1.6;
+  P.rerollCost = function (item) {
+    if (!item) return 0;
+    return Math.floor(P.itemScore(item) * 0.15 * Math.pow(P.REROLL_GROW, item.forges || 0)) + 3;
+  };
+  P.rerollAffixes = function (state, where, key, rng) {
+    if (!state.upgradesUnlocked) return false;
+    const item = where === "equip" ? state.equipment[key] : state.bag[key];
+    if (!item || item.unique) return false;
+    const want = P.AFFIX_COUNT[item.rarity] || 0;
+    if (!want) return false; // обычным нечего ковать
+    const cost = P.rerollCost(item);
+    if (state.tech < cost) return false;
+    rng = rng || Math.random;
+    state.tech -= cost;
+    item.forges = (item.forges || 0) + 1;
+    const affixes = [];
+    const pool = P.AFFIXES.slice();
+    for (let i = 0; i < want && pool.length; i++) {
+      const idx = Math.floor(rng() * pool.length);
+      affixes.push(pool.splice(idx, 1)[0].id);
+    }
+    item.affixes = affixes;
+    return true;
+  };
+
   /* Технологии с волны (ТЗ §3.2): обычная 30% x1, элита x5, босс x20.
      nightMult/eventMult — множители шанса из день/ночь и ивента. */
   P.rollTech = function (kind, chanceMult, rng) {

@@ -336,6 +336,7 @@ canvas {
 .inv-detail .d-btns button:disabled { opacity: 0.4; cursor: not-allowed; }
 .inv-detail .d-btns .b-sell { border-color: #e8b45e; }
 .inv-detail .d-btns .b-upg { border-color: var(--green); }
+.inv-detail .d-btns .b-reroll { border-color: #b48ee8; }
 .inv-hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* персонаж */
