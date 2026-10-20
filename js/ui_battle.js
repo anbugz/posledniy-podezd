@@ -119,6 +119,18 @@
       ctx.globalAlpha = 1;
     }
 
+    /* Поза оружия в руках (v4.8): каждая иконка якорится РУКОЯТЬЮ в кулак
+       героя (gripX/gripY — доля ширины/высоты иконки, где хват), rotOff —
+       выравнивание оси иконки в горизонталь, mirror — пистолет нарисован
+       дулом влево. muz — смещение дула от кулака после выравнивания (для
+       вспышки/трассера/дыма в heroHit). */
+    const WEAPON_POSE = {
+      knife: { len: 26, gripX: 0.15, gripY: 0.78, mirror: false, rotOff: 0.6,  muzX: 0,  muzY: 0 },
+      bat:   { len: 44, gripX: 0.18, gripY: 0.82, mirror: false, rotOff: 0.7,  muzX: 0,  muzY: 0 },
+      gun:   { len: 30, gripX: 0.65, gripY: 0.75, mirror: true,  rotOff: 0.0,  muzX: 19, muzY: 0 },
+      rifle: { len: 48, gripX: 0.38, gripY: 0.62, mirror: false, rotOff: 0.55, muzX: 28, muzY: -13 },
+    };
+
     function spawnParticles(x, y, color, n, spread) {
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -427,30 +439,32 @@
         }
         ctx.globalAlpha = 1;
 
-        // v4.6: надетое оружие в руках (иконка по семейству). Иконки стволов
-        // смотрят влево — зеркалим. Хват — правая рука спрайта.
+        // v4.8: надетое оружие в руках — якорь по рукояти иконки (WEAPON_POSE),
+        // а не по углу картинки: рукоять сидит точно в кулаке спрайта.
         const wpn = state.equipment.weapon;
+        const pose = WEAPON_POSE[fam];
         const wArt = wpn && Math.abs(fallTilt) < 0.05 && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
         if (wArt) {
           const hx = x + 10, hy = y - 38;
           let rot, recoil = 0;
           if (isGun) {
-            rot = 0;
+            rot = atkP <= 1 ? 0 : Math.sin(t / 16) * 0.02; // ствол ровно, лёгкое дыхание
             if (atkP <= 1) recoil = swing(atkP) * 6; // отдача назад
           } else if (atkP <= 1) {
             // взмах: из-за плеча вперёд-вниз, с ускорением
-            rot = (fam === "bat" ? -2.3 : -1.9) + easeOut(atkP) * (fam === "bat" ? 2.7 : 2.2);
+            rot = (fam === "bat" ? -1.6 : -1.2) + easeOut(atkP) * (fam === "bat" ? 2.1 : 1.7);
           } else {
-            rot = -0.45 + Math.sin(t / 16) * 0.06; // idle: оружие наготове, покачивание
+            // idle: оружие наготове (бита на плече), покачивание
+            rot = (fam === "bat" ? -0.9 : -0.5) + Math.sin(t / 16) * 0.06;
           }
-          const len = fam === "rifle" ? 48 : fam === "gun" ? 30 : fam === "bat" ? 44 : 26;
-          const ar = wArt.naturalWidth / wArt.naturalHeight;
+          const len = pose.len;
+          const hgt = len / (wArt.naturalWidth / wArt.naturalHeight);
           ctx.save();
           ctx.globalAlpha = alpha;
           ctx.translate(hx - recoil, hy);
-          ctx.rotate(rot);
-          if (isGun) ctx.scale(-1, 1);
-          ctx.drawImage(wArt, 0, -(len / ar) / 2, len, len / ar);
+          ctx.rotate(pose.rotOff + rot);
+          if (pose.mirror) ctx.scale(-1, 1);
+          ctx.drawImage(wArt, -pose.gripX * len, -pose.gripY * hgt, len, hgt);
           ctx.restore();
         }
 
@@ -836,9 +850,11 @@
         const fam = P.weaponFamily(state.equipment.weapon) || "knife";
         if (fam === "gun" || fam === "rifle") {
           // выстрел: вспышка у дула + трассер до врага + гильза (v4.6) + дым (v4.7)
-          const mx = HERO_X + 10 + (fam === "rifle" ? 48 : 30);
-          flashes.push({ x: mx, y: gy - 38, life: fam === "rifle" ? 10 : 8 });
-          tracers.push({ x1: mx + 2, y1: gy - 38, x2: ENEMY_X - 20, y2: gy - 52, life: 4 });
+          // v4.8: дуло — из WEAPON_POSE (точка хвата + выравнивание иконки)
+          const pose = WEAPON_POSE[fam];
+          const mx = HERO_X + 10 + pose.muzX, my = gy - 38 + pose.muzY;
+          flashes.push({ x: mx, y: my, life: fam === "rifle" ? 10 : 8 });
+          tracers.push({ x1: mx + 2, y1: my, x2: ENEMY_X - 20, y2: gy - 52, life: 4 });
           particles.push({
             x: HERO_X + 18, y: gy - 40,
             vx: -(0.8 + Math.random() * 0.6), vy: -(1.6 + Math.random() * 0.8),
@@ -846,7 +862,7 @@
           });
           for (let s = 0; s < 2; s++) {
             particles.push({
-              x: mx, y: gy - 42,
+              x: mx, y: my - 4,
               vx: 0.2 + Math.random() * 0.2, vy: -(0.3 + Math.random() * 0.2),
               color: "#9aa2b0", life: 30,
             });

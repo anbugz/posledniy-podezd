@@ -22,14 +22,15 @@ global.Image = class {
 
 // --- мок ctx: записываем вызовы ---
 function makeCtx() {
-  const calls = { drawImage: [], fillRect: [], fillText: [], gradients: [], rotate: [] };
+  const calls = { drawImage: [], fillRect: [], fillText: [], gradients: [], rotate: [], scale: [] };
   const ctx = {
     calls,
     drawImage(...a) { calls.drawImage.push(a); },
     fillRect(...a) { calls.fillRect.push({ args: a, style: ctx.fillStyle, alpha: ctx.globalAlpha }); },
     strokeRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
     arc() {}, ellipse() {}, fill() {}, save() {}, restore() {},
-    translate() {}, rotate(...a) { calls.rotate.push(a[0]); }, scale() {},
+    translate() {}, rotate(...a) { calls.rotate.push(a[0]); },
+    scale(...a) { calls.scale.push(a); },
     createRadialGradient(...a) {
       const g = { stops: [], addColorStop(o, c) { g.stops.push([o, c]); } };
       calls.gradients.push(g);
@@ -215,6 +216,33 @@ assert(ctx.calls.fillRect.some((r) => r.style === "#ffffff" && r.args[2] > 300),
 ctx.calls.fillRect.length = 0;
 for (let t = 300; t < 330; t++) view.render(t);
 assert(ctx.calls.fillRect.some((r) => r.style === "#aab4c8"), "амбиент Района: частицы пепла рисуются");
+
+// ===================== v4.8: хват оружия =====================
+
+// винтовка: якорь по рукояти (dx < 0) и БЕЗ зеркалирования (она и так смотрит вправо)
+state.equipment.weapon = P.generateItem("weapon", 4, "epic", Math.random, 3);
+state.equipment.weapon.family = "rifle";
+game.combat.phase = "fight";
+ctx.calls.drawImage.length = 0;
+ctx.calls.scale.length = 0;
+view.render(400);
+{
+  const wd = ctx.calls.drawImage.find((a) => String(a[0]._src).includes("icon_rifle"));
+  assert(!!wd, "винтовка рисуется");
+  assert(wd && wd[1] < -10 && wd[1] > -30, "винтовка якорится рукоятью в кулаке (dx " + (wd && wd[1].toFixed(1)) + ")");
+  assert(!ctx.calls.scale.some((a) => a[0] === -1), "винтовка НЕ зеркалится");
+}
+// пистолет: зеркалится (дулом влево нарисован), якорь по рукояти
+state.equipment.weapon.family = "gun";
+ctx.calls.drawImage.length = 0;
+ctx.calls.scale.length = 0;
+view.render(401);
+{
+  const wd = ctx.calls.drawImage.find((a) => String(a[0]._src).includes("icon_gun"));
+  assert(!!wd, "пистолет рисуется");
+  assert(wd && wd[1] < -12 && wd[1] > -28, "пистолет якорится рукоятью в кулаке (dx " + (wd && wd[1].toFixed(1)) + ")");
+  assert(ctx.calls.scale.some((a) => a[0] === -1), "пистолет зеркалится дулом к врагу");
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
