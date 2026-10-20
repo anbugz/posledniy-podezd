@@ -50,6 +50,7 @@
     let chance = LOOT_CHANCE;
     if (kind !== "norm") chance = 1.0;
     if (offline) chance *= 0.5;
+    chance *= P.perkLootMult(state); // v4.3: перк «Собиратель» — +20% находок
     if (rng() >= chance) return null;
 
     const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));

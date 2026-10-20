@@ -12,7 +12,7 @@
     const skills = {};
     for (const id of Object.keys(P.SKILLS)) skills[id] = { readyAt: 0 };
     return {
-      version: 5,
+      version: 6,
       supplies: 0,
       tech: 0,
       exp: 0,          // v4.0: опыт выживания (валюта «Самоделок»)
@@ -20,6 +20,8 @@
       snackUntil: 0,   // v4.0: бафф «Перекус» (игровое время)
       uniques: {},     // v4.1: найденные уники по зонам (один раз за зону)
       prestige: P.defaultPrestige(), // v4.2: «Возврат во времени» (RL, очки, циклы)
+      perk: null,      // v4.3: полевой приём (Ветеран), респек бесплатный
+      path: null,      // v4.3: путь цикла {id, exp} — один выбор за цикл
       totalSupplies: 0,
       hero: { hp: 120 },
       equipment: P.startingEquipment(),
@@ -77,17 +79,17 @@
     P.storage.setItem(P.SAVE_KEY, JSON.stringify(state));
   };
 
-  /* Миграция: v5 — как есть; v4 → v5 (добавляем prestige — «Возврат во времени»);
-     v3 → v4 (exp/expSpent/snackUntil; самоделки за опыт — ретроактивно начисляем
-     опыт за пройденные волны: волны × 1.2); v2 → v3 → … → v5;
+  /* Миграция: v6 — как есть; v5 → v6 (добавляем perk/path — «Пути»);
+     v4 → v5 (prestige — «Возврат во времени»); v3 → v4 (exp/expSpent/snackUntil;
+     самоделки за опыт — ретроактивно: волны × 1.2); v2 → v3 → … → v6;
      повреждённый/чужой -> новая игра. */
   P.migrate = function (raw) {
     if (!raw) return P.defaultState();
     if (raw.version === 2) raw = migrateV2toV3(raw);
-    if (raw.version !== 3 && raw.version !== 4 && raw.version !== 5) return P.defaultState();
+    if (raw.version < 3 || raw.version > 6) return P.defaultState();
     const d = P.defaultState();
     const s = Object.assign(d, raw);
-    s.version = 5;
+    s.version = 6;
     // v4.0: опыт за уже пройденные волны (оценка: волны × 1.2 — с элитами/боссами)
     if (raw.exp == null) {
       s.exp = Math.floor((raw.stats && raw.stats.wavesCleared || 0) * 1.2);
@@ -96,6 +98,10 @@
     if (raw.snackUntil == null) s.snackUntil = 0;
     // v4.2: престиж — по умолчанию нулевой, частичные объекты дополняем
     s.prestige = Object.assign(P.defaultPrestige(), raw.prestige || {});
+    s.prestige.pathMax = Object.assign({}, (raw.prestige || {}).pathMax || {});
+    // v4.3: perk/path — санити-проверка идентификаторов
+    if (s.perk && !P.PERKS[s.perk]) s.perk = null;
+    if (s.path && (!P.PATHS[s.path.id])) s.path = null;
     s.hero = Object.assign({ hp: 120 }, raw.hero);
     s.equipment = Object.assign(d.equipment, raw.equipment);
     s.bag = Array.isArray(raw.bag) ? raw.bag : [];
@@ -185,6 +191,7 @@
       state.tech += P.rollTech(enemy.kind, 0.5);
       state.exp = (state.exp || 0) + P.expGain(state, enemy.kind);
       report.exp = (report.exp || 0) + P.expGain(state, enemy.kind);
+      P.pathExpGain(state, enemy.kind); // v4.3: путь качается и оффлайн
       // гарант-дропы по расписанию (v4.1), иначе обычный бросок
       const gSlot = P.GUARANTEED_DROPS[P.waveCycle(zone.wave, zdef.wavesCap).nEff];
       if (gSlot) {

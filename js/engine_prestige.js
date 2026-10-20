@@ -19,7 +19,7 @@
   ];
 
   P.defaultPrestige = function () {
-    return { rl: 0, points: 0, cycles: 0, bestRarity: 0, circles: 0 };
+    return { rl: 0, points: 0, cycles: 0, bestRarity: 0, circles: 0, pathMax: {} };
   };
 
   P.rl = function (state) {
@@ -97,6 +97,7 @@
     if (!P.prestigeAvailable(state)) return null;
     const pr = state.prestige || P.defaultPrestige();
     const earned = P.prestigePointsPreview(state).total;
+    P.rememberPath(state); // v4.3: макс-уровень пути уходит в память класса
 
     const fresh = P.defaultState();
     fresh.prestige = {
@@ -105,6 +106,7 @@
       cycles: (pr.cycles || 0) + 1,
       bestRarity: 0,
       circles: 0,
+      pathMax: Object.assign({}, pr.pathMax || {}),
     };
     // QoL-настройки и суммарная статистика переживают возврат
     fresh.autoSell = state.autoSell;

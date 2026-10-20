@@ -118,6 +118,7 @@
       offline: $("offline-screen"), offlineBody: $("offline-body"), offlineOk: $("offline-ok"),
       savedHint: $("saved-hint"), tooltip: $("tooltip"),
       rlChip: $("rlChip"),
+      pathsSection: $("paths-section"), pathsSub: $("pathsSub"), pathsBody: $("paths-body"),
       prestigeSection: $("prestige-section"), prestigeSub: $("prestigeSub"), prestigeBody: $("prestige-body"),
       prestigeConfirm: $("prestige-confirm"), prestigeConfirmBody: $("prestige-confirm-body"),
       prestigeYes: $("prestige-yes"), prestigeNo: $("prestige-no"),
@@ -284,6 +285,12 @@
       html += "<div class='ch-sect'>Самоделки</div>";
       for (const key of Object.keys(P.TRAINING)) {
         html += "<div class='ch-row'><span>" + P.TRAINING[key].name + "</span><b>ур. " + t[key] + "</b></div>";
+      }
+      if (P.pathsUnlocked(state)) {
+        html += "<div class='ch-sect'>Путь героя</div>";
+        html += "<div class='ch-row'><span>Приём</span><b>" + (state.perk ? P.PERKS[state.perk].name : "—") + "</b></div>";
+        const pid = state.path && state.path.id;
+        html += "<div class='ch-row'><span>Путь</span><b>" + (pid ? P.PATHS[pid].name + " ур. " + P.pathEffLevel(state) : "—") + "</b></div>";
       }
       html += "<div class='ch-sect'>Текущий фронт</div>";
       html += "<div class='ch-row'><span>Зона</span><b>" + zdef.name + "</b></div>";
@@ -659,7 +666,100 @@
         trainBtns[key].btn.textContent = full ? "потолок" : "Вложить очко — ⭐1";
         trainBtns[key].btn.disabled = full || avail < 1;
       }
+      renderPaths();
       renderPrestige();
+    }
+
+    /* ---------- «Путь героя» (v4.3): полевые приёмы + путь цикла ---------- */
+    function renderPaths() {
+      const show = P.pathsUnlocked(state);
+      el.pathsSection.classList.toggle("hidden", !show);
+      if (!show) return;
+
+      const perkDef = state.perk ? P.PERKS[state.perk] : null;
+      const pathId = state.path && state.path.id;
+      el.pathsSub.textContent =
+        (perkDef ? "приём: " + perkDef.name : "приём не выбран") +
+        (pathId ? " · путь: " + P.PATHS[pathId].name + " ур. " + P.pathEffLevel(state) : " · путь не выбран");
+      el.pathsBody.innerHTML = "";
+
+      // --- полевые приёмы: взаимоисключающие, смена бесплатна ---
+      const perkHead = document.createElement("div");
+      perkHead.className = "paths-head";
+      perkHead.textContent = "Полевые приёмы — один активный, смена бесплатна:";
+      el.pathsBody.appendChild(perkHead);
+      const perkGrid = document.createElement("div");
+      perkGrid.className = "training-grid";
+      for (const id of Object.keys(P.PERKS)) {
+        const def = P.PERKS[id];
+        const card = document.createElement("div");
+        card.className = "train-card" + (state.perk === id ? " perk-active" : "");
+        card.innerHTML =
+          "<span class='t-name'>" + def.name + "</span>" +
+          "<span class='t-desc'>" + def.desc + "</span>" +
+          "<span class='t-flavor'>" + def.flavor + "</span>";
+        const btn = document.createElement("button");
+        btn.textContent = state.perk === id ? "активен" : "Выбрать";
+        btn.disabled = state.perk === id;
+        btn.addEventListener("click", () => {
+          if (P.choosePerk(state, id)) {
+            battleView.addFloater(240, 120, "🎖 Приём: " + def.name, "#5ee87d");
+            forceHeavy = true;
+            refresh();
+            renderBase();
+          }
+        });
+        card.appendChild(btn);
+        perkGrid.appendChild(card);
+      }
+      el.pathsBody.appendChild(perkGrid);
+
+      // --- путь цикла: один выбор, качается опытом волн, память между циклами ---
+      const pathHead = document.createElement("div");
+      pathHead.className = "paths-head";
+      pathHead.textContent = pathId
+        ? "Путь цикла (выбор до «Возврата»):"
+        : "Путь цикла — выбирается один раз, качается опытом волн (10 ⭐ = уровень):";
+      el.pathsBody.appendChild(pathHead);
+      const pathGrid = document.createElement("div");
+      pathGrid.className = "training-grid";
+      for (const id of Object.keys(P.PATHS)) {
+        const def = P.PATHS[id];
+        const chosen = pathId === id;
+        const mem = P.pathMax(state, id);
+        const card = document.createElement("div");
+        card.className = "train-card" + (chosen ? " path-active" : "");
+        let html =
+          "<span class='t-name'>" + def.name + "</span>" +
+          "<span class='t-desc'>" + def.perLevel + " за уровень</span>" +
+          "<span class='t-flavor'>" + def.flavor + "</span>";
+        if (chosen) {
+          const lvl = P.pathLevel(state);
+          const eff = P.pathEffLevel(state);
+          const into = (state.path.exp || 0) % P.PATH_EXP_PER_LEVEL;
+          html += "<span class='t-lvl'>ур. " + eff +
+            (mem > lvl ? " (память " + mem + ")" : "") +
+            (lvl >= P.PATH_LEVEL_CAP ? " · макс" : " · до след.: " + into + "/" + P.PATH_EXP_PER_LEVEL + " ⭐") + "</span>";
+        } else if (mem > 0) {
+          html += "<span class='t-lvl'>память класса: ур. " + mem + "</span>";
+        }
+        card.innerHTML = html;
+        if (!pathId) {
+          const btn = document.createElement("button");
+          btn.textContent = "Выбрать путь";
+          btn.addEventListener("click", () => {
+            if (P.choosePath(state, id)) {
+              battleView.addFloater(240, 120, "🎖 Путь: " + def.name, "#b48ee8");
+              forceHeavy = true;
+              refresh();
+              renderBase();
+            }
+          });
+          card.appendChild(btn);
+        }
+        pathGrid.appendChild(card);
+      }
+      el.pathsBody.appendChild(pathGrid);
     }
 
     /* ---------- престиж «Возврат во времени» (v4.2) ---------- */

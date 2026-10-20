@@ -477,3 +477,11 @@ canvas {
 .modal-btns { display: flex; gap: 10px; }
 .modal-btn.danger { border-color: #b48ee8; color: #b48ee8; }
 .modal-btn.danger:hover { background: #b48ee822; }
+
+/* ---------- «Путь героя» (v4.3) ---------- */
+.paths { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.paths.hidden { display: none; }
+.paths h2 { font-size: 16px; color: var(--green); }
+.paths-head { font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+.train-card.perk-active { border-color: var(--green); box-shadow: 0 0 8px rgba(94, 232, 125, 0.25); }
+.train-card.path-active { border-color: #b48ee8; box-shadow: 0 0 8px rgba(180, 142, 232, 0.3); }

@@ -335,8 +335,12 @@ class CycleHero:
     """Герой полного цикла: предметы по слотам (бюджетная модель generateItem),
     самоделки за опыт, квартира за припасы, улучшение оружия за tech."""
 
-    def __init__(self, rl=0):
+    def __init__(self, rl=0, path_max=None):
         self.rl = rl
+        self.path_max = dict(path_max or {})  # v4.3: память класса (переживает цикл)
+        self.perk = None           # полевой приём: power/tough/scavenge
+        self.path = None           # путь цикла: storm/iron/junker
+        self.path_exp = 0
         self.t = 0.0
         self.supplies = 0.0
         self.tech = 0.0
@@ -374,7 +378,21 @@ class CycleHero:
 
     @property
     def sup_mult(self):
-        return 1.15 if self.rl >= 8 else 1.0
+        m = 1.15 if self.rl >= 8 else 1.0
+        if self.perk == "scavenge":
+            m *= 1.2
+        if self.path == "junker":
+            m *= 1 + 0.05 * self.path_eff_level
+        return m
+
+    # --- путь (v4.3): уровень от опыта волн, память между циклами ---
+    @property
+    def path_level(self):
+        return min(10, self.path_exp // 10) if self.path else 0
+
+    @property
+    def path_eff_level(self):
+        return max(self.path_level, self.path_max.get(self.path, 0)) if self.path else 0
 
     def _sum(self, key):
         return sum(it.get(key, 0.0) * (ITEM_UPGRADE_MULT ** it.get("lvl", 0)) for it in self.items.values())
@@ -382,11 +400,21 @@ class CycleHero:
     @property
     def hp_max(self):
         base = HP_BASE + HP_PER_APT * self.apt_level + self._sum("hp")
-        return round(base * (1 + TRAIN["vit"] * self.training["vit"]) * self.rl_mult)
+        m = (1 + TRAIN["vit"] * self.training["vit"]) * self.rl_mult
+        if self.perk == "tough":
+            m *= 1.25
+        if self.path == "iron":
+            m *= 1 + 0.04 * self.path_eff_level
+        return round(base * m)
 
     @property
     def dps(self):
-        return self._sum("dps") * (1 + TRAIN["str"] * self.training["str"]) * self.rl_mult
+        m = (1 + TRAIN["str"] * self.training["str"]) * self.rl_mult
+        if self.perk == "power":
+            m *= 1.25
+        if self.path == "storm":
+            m *= 1 + 0.04 * self.path_eff_level
+        return self._sum("dps") * m
 
     @property
     def armor_total(self):
@@ -479,6 +507,8 @@ class CycleHero:
             self.supplies += math.floor(SUPPLY_DROP_BASE * SUPPLY_DROP_GROW ** n * self.sup_mult)
             self.tech += (1 if random.random() < 0.30 else 0) * (5 if kind == "elite" else (20 if kind == "boss" else 1))
             self.exp += WAVE_EXP[kind] * self.exp_mult
+            if self.path:
+                self.path_exp += WAVE_EXP[kind]   # v4.3: путь качается опытом волн
             # лут
             if n in GUARANTEED:
                 self.loot_drop(GUARANTEED[n], tier, kind, n, guaranteed=True)
@@ -496,6 +526,11 @@ class CycleHero:
                     self.zone_idx += 1
                     self.wave = 1
                     self.log.append(f"t={self.t/60:6.1f}м ЗАЧИЩЕНА {zone_name} -> {ZONES_SEQ[self.zone_idx][0]}")
+                    # v4.3: зачистка Двора (Ветеран) — бот берёт приём и путь силы
+                    if self.zone_idx >= 2 and self.perk is None:
+                        self.perk = "power"
+                        self.path = "storm"
+                        self.log.append(f"t={self.t/60:6.1f}м Ветеран: приём «Силовой», путь «Штурмовик»")
                     return True, False
                 return True, True   # Район зачищен — цикл завершён
             self.wave += 1
@@ -508,10 +543,13 @@ class CycleHero:
         return False, False
 
     def reset_cycle(self, rl):
-        """Возврат во времени: сгорает всё, кроме RL."""
+        """Возврат во времени: сгорает всё, кроме RL и памяти класса."""
         t = self.t
         rl_total = self.rl + rl
-        self.__init__(rl_total)
+        pm = dict(self.path_max)
+        if self.path:
+            pm[self.path] = max(pm.get(self.path, 0), self.path_level)
+        self.__init__(rl_total, pm)
         self.t = t
 
 

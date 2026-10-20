@@ -96,9 +96,12 @@
     const t = state.training || { str: 0, vit: 0, def: 0, acc: 0 };
     // v4.2: Уровень времени (престиж) — +5% DPS и +5% HP за каждый RL навсегда
     const rlMult = P.rlMult(state);
+    // v4.3: «Полевые приёмы» (перк) и «Путь» (класс цикла + память класса)
+    const perkDps = P.perkDpsMult(state), pathDps = P.pathDpsMult(state);
+    const perkHp = P.perkHpMult(state), pathHp = P.pathHpMult(state);
 
-    const dps = dpsItems * (1 + P.TRAIN_EFFECT.str * t.str) * rlMult;
-    let hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit) * rlMult);
+    const dps = dpsItems * (1 + P.TRAIN_EFFECT.str * t.str) * rlMult * perkDps * pathDps;
+    let hpMax = Math.round((100 + 20 * apt + hpItems) * (1 + P.TRAIN_EFFECT.vit * t.vit) * rlMult * perkHp * pathHp);
     armor += P.TRAIN_EFFECT.def * t.def;
     crit += P.TRAIN_EFFECT.acc * t.acc;
     crit = Math.min(crit, 0.60);
@@ -110,8 +113,9 @@
 
     // аффиксы: припасы с волн, реген в бою, крит-урон, двойной удар
     const af = countAffixes(eq);
-    // v4.2: RL≥8 — +15% припасов с волн (мультипликативно к аффиксам)
-    const supMult = (1 + 0.15 * af.stockpile) * P.rlSuppliesMult(state);
+    // v4.2: RL≥8 — +15% припасов с волн; v4.3: Собиратель ×1.2, Старьёвщик +5%/ур.
+    const supMult = (1 + 0.15 * af.stockpile) * P.rlSuppliesMult(state) *
+      P.perkLootMult(state) * P.pathSupMult(state);
     const regenCombat = 0.01 * af.regen;           // доля hpMax/сек в бою
     const critDmg = 2.0 + 0.1 * af.critdmg;        // базовый крит ×2
     const doubleHit = 0.1 * af.double;             // шанс второго удара
@@ -121,6 +125,8 @@
       dps: dpsSnack, dpsItems, hpMax, armor, crit, dr, dpsEff,
       supMult, regenCombat, critDmg, doubleHit, snack,
       rl: P.rl(state), rlMult,
+      perk: state.perk || null, pathId: state.path && state.path.id || null,
+      pathLevel: P.pathEffLevel(state),
       training: Object.assign({}, t),
     };
   };

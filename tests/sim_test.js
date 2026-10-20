@@ -14,6 +14,7 @@ require("../js/engine_stats.js");
 require("../js/engine_combat.js");
 require("../js/engine_loot.js");
 require("../js/engine_econ.js");
+require("../js/engine_paths.js");
 require("../js/engine_prestige.js");
 require("../js/engine_save.js");
 require("../js/engine_game.js");
@@ -260,7 +261,7 @@ function approx(a, b, eps, msg) {
 // ---------- save/load: версия 3, миграция v2 ----------
 {
   const state = P.defaultState();
-  assert(state.version === 5, "сейв версии 5");
+  assert(state.version === 6, "сейв версии 6");
   state.supplies = 500;
   P.save(state);
   const loaded = P.load();
@@ -282,7 +283,7 @@ function approx(a, b, eps, msg) {
   P.storage.setItem("podezd_save_v2", JSON.stringify(old));
   P.storage.removeItem(P.SAVE_KEY);
   const migrated = P.load();
-  assert(migrated.state.version === 5, "миграция v2 -> v5");
+  assert(migrated.state.version === 6, "миграция v2 -> v6");
   assert(migrated.state.supplies >= 321, "припасы перенесены");
   assert(migrated.state.zones.apartment.level === 3, "уровень квартиры перенесён");
   assert(migrated.state.equipment.weapon.name === "Кухонный нож", "экипировка перенесена");
@@ -298,10 +299,10 @@ function approx(a, b, eps, msg) {
   old3.stats.wavesCleared = 100;
   P.storage.setItem(P.SAVE_KEY, JSON.stringify(old3));
   const m3 = P.load();
-  assert(m3.state.version === 5, "миграция v3 -> v5");
+  assert(m3.state.version === 6, "миграция v3 -> v6");
   assert(m3.state.exp === 120, "v3: опыт = волны × 1.2");
 
-  // миграция v4 -> v5: прогресс на месте, prestige добавлен нулевым
+  // миграция v4 -> v6: прогресс на месте, prestige добавлен нулевым
   const old4 = P.defaultState();
   old4.version = 4;
   delete old4.prestige;
@@ -309,7 +310,7 @@ function approx(a, b, eps, msg) {
   old4.stats.wavesCleared = 55;
   P.storage.setItem(P.SAVE_KEY, JSON.stringify(old4));
   const m4 = P.load();
-  assert(m4.state.version === 5, "миграция v4 -> v5");
+  assert(m4.state.version === 6, "миграция v4 -> v6");
   assert(m4.state.supplies >= 777, "v4: припасы перенесены");
   assert(m4.state.prestige.rl === 0 && m4.state.prestige.points === 0, "v4: prestige добавлен нулевым");
 }
@@ -682,7 +683,7 @@ function approx(a, b, eps, msg) {
   assert(!s2.zones.district.unlocked && s2.zones.district.wave === 1, "зоны закрыты заново");
   assert(!s2.upgradesUnlocked && !s2.hubUnlocked && !s2.veteranUnlocked, "гейты закрыты");
   assert(Object.keys(s2.uniques).length === 0, "уники можно собрать заново");
-  assert(s2.version === 5, "версия сейва сохранена");
+  assert(s2.version === 6, "версия сейва сохранена");
   assert(s2.stats.wavesCleared >= 0 && s2.stats === s2.stats, "статистика пережила возврат");
 
   // покупка RL за очки
@@ -741,6 +742,98 @@ function approx(a, b, eps, msg) {
   s6.prestige.rl = 3;
   assert(P.expGain(s6, "boss") === 5.5, "RL3: босс даёт 5.5 опыта");
   assert(P.expGain(s6, "norm") === 1.1, "RL3: волна даёт 1.1 опыта");
+}
+
+// ---------- v4.3: «Пути» — полевые приёмы и память класса ----------
+{
+  // гейт: до зачистки Двора (Ветеран) недоступно
+  const g0 = P.defaultState();
+  assert(!P.pathsUnlocked(g0), "пути закрыты до Двора");
+  assert(!P.choosePerk(g0, "power") && !P.choosePath(g0, "storm"), "выбор недоступен без Ветерана");
+
+  // полевые приёмы: эффекты и бесплатный респек
+  const s1 = P.defaultState();
+  s1.veteranUnlocked = true;
+  const d0 = P.calcHero(s1).dps, h0 = P.calcHero(s1).hpMax, sup0 = P.calcHero(s1).supMult;
+  assert(P.choosePerk(s1, "power"), "приём «Силовой» выбран");
+  approx(P.calcHero(s1).dps, d0 * 1.25, 0.01, "Силовой приём: +25% DPS");
+  assert(P.choosePerk(s1, "tough"), "респек бесплатный — смена на «Стойкость»");
+  approx(P.calcHero(s1).dps, d0, 0.01, "после респека DPS вернулся");
+  approx(P.calcHero(s1).hpMax, Math.round(h0 * 1.25), 1, "Стойкость: +25% HP");
+  assert(P.choosePerk(s1, "scavenge"), "смена на «Собиратель»");
+  approx(P.calcHero(s1).supMult, sup0 * 1.2, 0.001, "Собиратель: +20% припасов");
+  assert(!P.choosePerk(s1, "fly"), "неизвестный приём отклонён");
+
+  // путь цикла: один выбор, уровни от опыта волн
+  const s2 = P.defaultState();
+  s2.veteranUnlocked = true;
+  assert(P.pathExpGain(s2, "boss") === 0, "без пути опыт пути не капает");
+  assert(P.choosePath(s2, "storm"), "путь «Штурмовик» выбран");
+  assert(!P.choosePath(s2, "iron"), "путь один за цикл — смена запрещена");
+  P.pathExpGain(s2, "boss"); // +5
+  for (let i = 0; i < 25; i++) P.pathExpGain(s2, "norm"); // +25 -> всего 30
+  assert(s2.path.exp === 30, "опыт пути накоплен");
+  assert(P.pathLevel(s2) === 3, "30 опыта = 3-й уровень пути");
+  approx(P.pathDpsMult(s2), 1.12, 0.001, "Штурмовик ур.3: +12% DPS");
+  // потолок уровня
+  for (let i = 0; i < 200; i++) P.pathExpGain(s2, "norm");
+  assert(P.pathLevel(s2) === P.PATH_LEVEL_CAP, "уровень пути ограничен потолком 10");
+
+  // Живучий и Старьёвщик
+  const si = P.defaultState();
+  si.veteranUnlocked = true;
+  P.choosePath(si, "iron");
+  for (let i = 0; i < 50; i++) P.pathExpGain(si, "norm");
+  approx(P.pathHpMult(si), 1.20, 0.001, "Живучий ур.5: +20% HP");
+  const sj = P.defaultState();
+  sj.veteranUnlocked = true;
+  P.choosePath(sj, "junker");
+  for (let i = 0; i < 40; i++) P.pathExpGain(sj, "norm");
+  approx(P.pathSupMult(sj), 1.20, 0.001, "Старьёвщик ур.4: +20% припасов");
+  approx(P.calcHero(sj).supMult, 1.20, 0.001, "supMult в calcHero учитывает путь");
+
+  // память класса: максимум пути переживает «Возврат во времени»
+  const s3 = P.defaultState();
+  s3.veteranUnlocked = true;
+  s3.upgradesUnlocked = true;
+  for (const id of P.ZONE_ORDER) { s3.zones[id].unlocked = true; s3.zones[id].maxWave = 21; }
+  P.choosePath(s3, "storm");
+  for (let i = 0; i < 70; i++) P.pathExpGain(s3, "norm"); // ур. 7
+  P.choosePerk(s3, "power");
+  assert(P.pathLevel(s3) === 7, "путь прокачан до 7");
+  const earned3 = P.doPrestige(s3);
+  assert(earned3 !== null, "возврат выполнен");
+  assert(s3.prestige.pathMax.storm === 7, "память класса: Штурмовик ур.7 запомнен");
+  assert(s3.path === null && s3.perk === null, "путь и приём сброшены с циклом");
+  // следующий цикл: выбираем тот же путь — память действует сразу
+  s3.veteranUnlocked = true;
+  assert(P.choosePath(s3, "storm"), "путь выбран на новом цикле");
+  assert(P.pathLevel(s3) === 0 && P.pathEffLevel(s3) === 7, "память даёт ур.7 сразу");
+  approx(P.pathDpsMult(s3), 1.28, 0.001, "бонус памяти активен с первой волны");
+  // другой путь — без памяти
+  const s4 = P.defaultState();
+  s4.veteranUnlocked = true;
+  s4.prestige.pathMax = { storm: 7 };
+  P.choosePath(s4, "junker");
+  assert(P.pathEffLevel(s4) === 0, "память привязана к своему пути");
+
+  // миграция v5 -> v6: perk/path добавлены, pathMax дополнен
+  const old5 = P.defaultState();
+  old5.version = 5;
+  delete old5.perk; delete old5.path; delete old5.prestige.pathMax;
+  old5.prestige.rl = 4; old5.prestige.points = 2;
+  const m5 = P.migrate(old5);
+  assert(m5.version === 6, "миграция v5 -> v6");
+  assert(m5.perk === null && m5.path === null, "v5: perk/path добавлены пустыми");
+  assert(m5.prestige.rl === 4 && m5.prestige.points === 2, "v5: престиж перенесён");
+  assert(m5.prestige.pathMax && typeof m5.prestige.pathMax === "object", "v5: pathMax добавлен");
+
+  // оффлайн: путь качается
+  const so = P.defaultState();
+  so.veteranUnlocked = true;
+  P.choosePath(so, "storm");
+  P.applyOffline(so, 3600);
+  assert((so.path.exp || 0) > 0, "оффлайн-прогресс качает путь");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
