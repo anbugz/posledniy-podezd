@@ -113,22 +113,26 @@ for (const zid of Object.keys(GROUND)) {
     "земля " + zid + ": низ героя ≈ " + GROUND[zid] + " (got " + bottom.toFixed(1) + ")");
 }
 
-// --- оружие в руках: надетая винтовка рисуется у героя ---
+// --- оружие в руках: v4.9 — спрайт героя меняется на версию с надетым оружием ---
 game.setZone("district");
 state.equipment.weapon = P.generateItem("weapon", 4, "epic", Math.random, 3);
 state.equipment.weapon.family = "rifle";
 ctx.calls.drawImage.length = 0;
 view.render(100);
-const wd = weaponDraw();
-assert(!!wd, "надетое оружие (винтовка) рисуется в руках");
-assert(wd && String(wd[0]._src).includes("icon_rifle"), "иконка соответствует семейству rifle");
-// меняем на нож — иконка меняется
+{
+  const hd = heroDraw();
+  assert(hd && String(hd[0]._src).includes("hero_rifle"), "с винтовкой рисуется спрайт hero_rifle");
+  assert(!weaponDraw(), "иконка оружия НЕ рисуется поверх спрайта с оружием");
+}
+// меняем на нож — спрайт меняется
 state.equipment.weapon = P.generateItem("weapon", 1, "common", () => 0.01, 1);
 state.equipment.weapon.family = "knife";
 ctx.calls.drawImage.length = 0;
 view.render(100);
-const wd2 = weaponDraw();
-assert(wd2 && String(wd2[0]._src).includes("icon_knife"), "смена оружия меняет иконку в руках");
+{
+  const hd = heroDraw();
+  assert(hd && String(hd[0]._src).includes("hero_knife"), "смена оружия меняет спрайт героя");
+}
 
 // --- летающий враг Района: низ спрайта НАД землёй ---
 state.equipment.weapon.family = "rifle";
@@ -217,32 +221,28 @@ ctx.calls.fillRect.length = 0;
 for (let t = 300; t < 330; t++) view.render(t);
 assert(ctx.calls.fillRect.some((r) => r.style === "#aab4c8"), "амбиент Района: частицы пепла рисуются");
 
-// ===================== v4.8: хват оружия =====================
+// ===================== v4.8/v4.9: оружие в руках =====================
 
-// винтовка: якорь по рукояти (dx < 0) и БЕЗ зеркалирования (она и так смотрит вправо)
+// винтовка: свой спрайт, без иконки и без зеркалирования
 state.equipment.weapon = P.generateItem("weapon", 4, "epic", Math.random, 3);
 state.equipment.weapon.family = "rifle";
 game.combat.phase = "fight";
 ctx.calls.drawImage.length = 0;
 ctx.calls.scale.length = 0;
 view.render(400);
-{
-  const wd = ctx.calls.drawImage.find((a) => String(a[0]._src).includes("icon_rifle"));
-  assert(!!wd, "винтовка рисуется");
-  assert(wd && wd[1] < -10 && wd[1] > -30, "винтовка якорится рукоятью в кулаке (dx " + (wd && wd[1].toFixed(1)) + ")");
-  assert(!ctx.calls.scale.some((a) => a[0] === -1), "винтовка НЕ зеркалится");
-}
-// пистолет: зеркалится (дулом влево нарисован), якорь по рукояти
+assert(!ctx.calls.scale.some((a) => a[0] === -1), "винтовка НЕ зеркалится");
+// пистолет: свой спрайт, дым из дула спрайта (поднят к стволу)
 state.equipment.weapon.family = "gun";
 ctx.calls.drawImage.length = 0;
-ctx.calls.scale.length = 0;
+ctx.calls.fillRect.length = 0;
 view.render(401);
 {
-  const wd = ctx.calls.drawImage.find((a) => String(a[0]._src).includes("icon_gun"));
-  assert(!!wd, "пистолет рисуется");
-  assert(wd && wd[1] < -12 && wd[1] > -28, "пистолет якорится рукоятью в кулаке (dx " + (wd && wd[1].toFixed(1)) + ")");
-  assert(ctx.calls.scale.some((a) => a[0] === -1), "пистолет зеркалится дулом к врагу");
+  const hd = heroDraw();
+  assert(hd && String(hd[0]._src).includes("hero_gun"), "с пистолетом рисуется спрайт hero_gun");
 }
+view.heroHit({ dmg: 5, crit: false });
+view.render(402);
+assert(ctx.calls.fillRect.some((r) => r.style === "#9aa2b0"), "выстрел из пистолета: дым из дула");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

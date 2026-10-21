@@ -27,9 +27,11 @@
   loadArt("bg_district", "img/bg/bg_district.png");
   loadArt("hero", "img/sprites/hero.png");
   loadArt("heroHands", "img/sprites/hero_hands.png"); // v4.6: герой без оружия (оружие рисуем отдельно)
+  // v4.9: детализированные спрайты героя с реальным оружием в руках
+  for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("heroW_" + fam, "img/sprites/hero_" + fam + ".png");
   loadArt("drone", "img/sprites/enemy_drone.png");
   loadArt("brute", "img/sprites/enemy_brute.png");
-  // v4.6: иконки оружия — для отрисовки в руках героя (то, что надето)
+  // v4.6: иконки оружия — фолбэк, если спрайт героя с оружием ещё не загрузился
   for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("w_" + fam, "img/icons/icon_" + fam + ".png");
   // v3.4: у каждой зоны свой враг и свой босс
   for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
@@ -119,16 +121,15 @@
       ctx.globalAlpha = 1;
     }
 
-    /* Поза оружия в руках (v4.8): каждая иконка якорится РУКОЯТЬЮ в кулак
-       героя (gripX/gripY — доля ширины/высоты иконки, где хват), rotOff —
-       выравнивание оси иконки в горизонталь, mirror — пистолет нарисован
-       дулом влево. muz — смещение дула от кулака после выравнивания (для
-       вспышки/трассера/дыма в heroHit). */
+    /* Поза оружия (v4.9): у героя теперь детализированные спрайты с реальным
+       оружием в руках (hero_<fam>.png), иконки — только фолбэк. muzX/muzY —
+       смещение дула от (HERO_X, земля) на спрайте (замерено по кадру,
+       hh=80): вспышка/трассер/дым вылетают из настоящего дула. */
     const WEAPON_POSE = {
       knife: { len: 26, gripX: 0.15, gripY: 0.78, mirror: false, rotOff: 0.6,  muzX: 0,  muzY: 0 },
       bat:   { len: 44, gripX: 0.18, gripY: 0.82, mirror: false, rotOff: 0.7,  muzX: 0,  muzY: 0 },
-      gun:   { len: 30, gripX: 0.65, gripY: 0.75, mirror: true,  rotOff: 0.0,  muzX: 19, muzY: 0 },
-      rifle: { len: 48, gripX: 0.38, gripY: 0.62, mirror: false, rotOff: 0.55, muzX: 28, muzY: -13 },
+      gun:   { len: 30, gripX: 0.65, gripY: 0.75, mirror: true,  rotOff: 0.0,  muzX: 25, muzY: -65 },
+      rifle: { len: 48, gripX: 0.38, gripY: 0.62, mirror: false, rotOff: 0.55, muzX: 27, muzY: -63 },
     };
 
     function spawnParticles(x, y, color, n, spread) {
@@ -419,19 +420,24 @@
       else if (lastT - reviveAt < 8) fallTilt = -1.35 * (1 - easeOut((lastT - reviveAt) / 8));
       const alpha = dead ? 0.85 : 1;
 
-      // спрайт героя (сгенерированный); v4.6: версия без оружия — оружие рисуем
-      // отдельно по надетому предмету. Пока не загружено — кодом ниже.
-      const heroArt = artReady(ART.heroHands) ? ART.heroHands : artReady(ART.hero) ? ART.hero : null;
+      // спрайт героя; v4.9: детализированный спрайт под надетое оружие
+      // (hero_<fam>.png). Фолбэк: hero_hands + иконка оружия, затем hero.png.
+      const wSprite = ART["heroW_" + fam];
+      const hasWSprite = !!state.equipment.weapon && artReady(wSprite);
+      const heroArt = hasWSprite ? wSprite : artReady(ART.heroHands) ? ART.heroHands : artReady(ART.hero) ? ART.hero : null;
       if (heroArt) {
         // дыхание: лёгкое масштабирование, якорь — ноги на земле
         const breath = 1 + 0.012 * Math.sin(t / 10);
         const hh = 80 * breath;
         const hw = hh * (heroArt.naturalWidth / heroArt.naturalHeight); // пропорции спрайта
+        // v4.9: на спрайте с оружием взмах/выстрел анимируем наклоном корпуса
+        const atkTilt = hasWSprite && atkP <= 1 ? swing(atkP) * (isGun ? -0.06 : fam === "bat" ? 0.16 : 0.12) : 0;
+        const tilt = fallTilt + atkTilt;
         ctx.globalAlpha = alpha;
-        if (fallTilt !== 0) {
+        if (tilt !== 0) {
           ctx.save();
           ctx.translate(x, y);
-          ctx.rotate(fallTilt);
+          ctx.rotate(tilt);
           ctx.drawImage(heroArt, -hw / 2, -hh, hw, hh);
           ctx.restore();
         } else {
@@ -439,11 +445,10 @@
         }
         ctx.globalAlpha = 1;
 
-        // v4.8: надетое оружие в руках — якорь по рукояти иконки (WEAPON_POSE),
-        // а не по углу картинки: рукоять сидит точно в кулаке спрайта.
+        // фолбэк: на спрайте БЕЗ оружия рисуем иконку — якорь по рукояти (v4.8)
         const wpn = state.equipment.weapon;
         const pose = WEAPON_POSE[fam];
-        const wArt = wpn && Math.abs(fallTilt) < 0.05 && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
+        const wArt = !hasWSprite && wpn && Math.abs(fallTilt) < 0.05 && artReady(ART["w_" + fam]) ? ART["w_" + fam] : null;
         if (wArt) {
           const hx = x + 10, hy = y - 38;
           let rot, recoil = 0;
@@ -852,7 +857,7 @@
           // выстрел: вспышка у дула + трассер до врага + гильза (v4.6) + дым (v4.7)
           // v4.8: дуло — из WEAPON_POSE (точка хвата + выравнивание иконки)
           const pose = WEAPON_POSE[fam];
-          const mx = HERO_X + 10 + pose.muzX, my = gy - 38 + pose.muzY;
+          const mx = HERO_X + pose.muzX, my = gy + pose.muzY;
           flashes.push({ x: mx, y: my, life: fam === "rifle" ? 10 : 8 });
           tracers.push({ x1: mx + 2, y1: my, x2: ENEMY_X - 20, y2: gy - 52, life: 4 });
           particles.push({
