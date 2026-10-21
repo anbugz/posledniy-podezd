@@ -16,10 +16,19 @@
     text: "#e8e4f0",
   };
 
-  /* v3.3: сгенерированные арты (задники зон, спрайты). Пока картинка не
-     загрузилась — рисуем кодом, как раньше. */
+  /* v3.3: сгенерированные арты (задники зон, спрайты). v4.11: пока арты
+     грузятся, показываем экран загрузки — без «заготовок из прямоугольников». */
   const ART = {};
-  function loadArt(key, src) { const im = new Image(); im.src = src; ART[key] = im; }
+  let artTotal = 0, artLoaded = 0;
+  function loadArt(key, src) {
+    artTotal++;
+    const im = new Image();
+    im.onload = () => { artLoaded++; };
+    im.onerror = () => { artLoaded++; }; // битый файл — не вечная загрузка
+    im.src = src;
+    if (im.complete && im.naturalWidth > 0) artLoaded++; // из кэша мгновенно
+    ART[key] = im;
+  }
   loadArt("bg_apartment", "img/bg/bg_apartment.png");
   loadArt("bg_entrance", "img/bg/bg_entrance.png");
   loadArt("bg_yard", "img/bg/bg_yard.png");
@@ -824,6 +833,25 @@
       /* вызывать из главного цикла */
       render(t) {
         lastT = t;
+        // v4.11: экран загрузки, пока арты не приехали (хард-рефреш)
+        if (artLoaded < artTotal) {
+          ctx.fillStyle = "#0d1220";
+          ctx.fillRect(0, 0, W, H);
+          ctx.fillStyle = PAL.text;
+          ctx.font = "14px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("ПОСЛЕДНИЙ ПОДЪЕЗД", W / 2, H / 2 - 24);
+          const bw = 240, bx = (W - bw) / 2, by = H / 2;
+          const pct = artTotal ? artLoaded / artTotal : 1;
+          ctx.strokeStyle = "#3a3450";
+          ctx.strokeRect(bx - 0.5, by - 0.5, bw + 1, 9);
+          ctx.fillStyle = "#5ee87d";
+          ctx.fillRect(bx, by, Math.round(bw * pct), 8);
+          ctx.fillStyle = "#8a94a8";
+          ctx.font = "9px monospace";
+          ctx.fillText("загрузка " + artLoaded + "/" + artTotal, W / 2, by + 24);
+          return;
+        }
         // v4.7: переходы фаз — падение/воскрешение героя
         const ph = game.combat.phase;
         if (ph === "knockout" && prevPhase !== "knockout") {
