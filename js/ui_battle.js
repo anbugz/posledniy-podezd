@@ -29,14 +29,16 @@
   loadArt("heroHands", "img/sprites/hero_hands.png"); // v4.6: герой без оружия (оружие рисуем отдельно)
   // v4.9: детализированные спрайты героя с реальным оружием в руках
   for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("heroW_" + fam, "img/sprites/hero_" + fam + ".png");
+  // v4.10: атакующие кадры героя (настоящая кадровая анимация удара/выстрела)
+  for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("heroWA_" + fam, "img/sprites/hero_" + fam + "_atk.png");
   loadArt("drone", "img/sprites/enemy_drone.png");
   loadArt("brute", "img/sprites/enemy_brute.png");
   // v4.6: иконки оружия — фолбэк, если спрайт героя с оружием ещё не загрузился
   for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("w_" + fam, "img/icons/icon_" + fam + ".png");
-  // v3.4: у каждой зоны свой враг и свой босс
+  // v4.10: детализированные hd-спрайты врагов (старые файлы оставлены как запас)
   for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
-    loadArt(z + "_grunt", "img/sprites/" + z + "_grunt.png");
-    loadArt(z + "_boss", "img/sprites/" + z + "_boss.png");
+    loadArt(z + "_grunt", "img/sprites/" + z + "_grunt_hd.png");
+    loadArt(z + "_boss", "img/sprites/" + z + "_boss_hd.png");
   }
   const artReady = (im) => im && im.complete && im.naturalWidth > 0;
 
@@ -48,13 +50,22 @@
     return artReady(ART["bg_" + zoneId]) ? (GROUND_Y_ART[zoneId] || FLOOR_Y) : FLOOR_Y;
   }
   /* Пустая полоса под контентом спрайта (доля высоты, замер по альфа-каналу):
-     на неё опускаем спрайт, иначе фигура «стоит на воздухе». */
+     на неё опускаем спрайт, иначе фигура «стоит на воздухе». v4.10: значения
+     перемерены под детализированные hd-спрайты. */
   const SPRITE_TRIM = {
-    yard_grunt: 0.14, house_grunt: 0.04, house_boss: 0.04,
-    entrance_boss: 0.02, yard_boss: 0.07,
+    apartment_grunt: 0.12, apartment_boss: 0.0,
+    entrance_grunt: 0.06, entrance_boss: 0.01,
+    yard_grunt: 0.21, yard_boss: 0.02,
+    house_grunt: 0.20, house_boss: 0.04,
+    district_grunt: 0.11, district_boss: 0.07,
   };
   /* Летающие спрайты: низ контента держим НАД землёй + покачивание. */
   const SPRITE_FLY = { district_grunt: 16, district_boss: 22, drone: 18 };
+  /* v4.10: нижняя кромка спрайтов героя (idle + атакующий кадр). */
+  const HERO_TRIM = {
+    knife: 0.062, bat: 0.04, gun: 0.055, rifle: 0.09,
+    knife_atk: 0.107, bat_atk: 0.071, gun_atk: 0.075, rifle_atk: 0.089,
+  };
   /* Спрайт врага: зона + тип (босс/грунт), с откатом на старые спрайты. */
   function enemyArt(zoneId, kind) {
     const boss = kind === "boss";
@@ -421,27 +432,32 @@
       const alpha = dead ? 0.85 : 1;
 
       // спрайт героя; v4.9: детализированный спрайт под надетое оружие
-      // (hero_<fam>.png). Фолбэк: hero_hands + иконка оружия, затем hero.png.
+      // (hero_<fam>.png). v4.10: во время атаки — настоящий атакующий кадр
+      // (hero_<fam>_atk.png). Фолбэк: hero_hands + иконка оружия, затем hero.png.
       const wSprite = ART["heroW_" + fam];
       const hasWSprite = !!state.equipment.weapon && artReady(wSprite);
-      const heroArt = hasWSprite ? wSprite : artReady(ART.heroHands) ? ART.heroHands : artReady(ART.hero) ? ART.hero : null;
+      const atkSprite = atkP <= 1 && hasWSprite && artReady(ART["heroWA_" + fam]) ? ART["heroWA_" + fam] : null;
+      const heroArt = atkSprite || (hasWSprite ? wSprite : artReady(ART.heroHands) ? ART.heroHands : artReady(ART.hero) ? ART.hero : null);
       if (heroArt) {
         // дыхание: лёгкое масштабирование, якорь — ноги на земле
         const breath = 1 + 0.012 * Math.sin(t / 10);
         const hh = 80 * breath;
         const hw = hh * (heroArt.naturalWidth / heroArt.naturalHeight); // пропорции спрайта
-        // v4.9: на спрайте с оружием взмах/выстрел анимируем наклоном корпуса
-        const atkTilt = hasWSprite && atkP <= 1 ? swing(atkP) * (isGun ? -0.06 : fam === "bat" ? 0.16 : 0.12) : 0;
+        // v4.10: обрезка пустой полосы под спрайтом — ботинки точно на земле
+        const hTrim = atkSprite ? (HERO_TRIM[fam + "_atk"] || 0) : hasWSprite ? (HERO_TRIM[fam] || 0) : 0;
+        const dyTop = -hh * (1 - hTrim);
+        // наклон корпуса — только когда нет атакующего кадра (фолбэк-анимация)
+        const atkTilt = !atkSprite && hasWSprite && atkP <= 1 ? swing(atkP) * (isGun ? -0.06 : fam === "bat" ? 0.16 : 0.12) : 0;
         const tilt = fallTilt + atkTilt;
         ctx.globalAlpha = alpha;
         if (tilt !== 0) {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(tilt);
-          ctx.drawImage(heroArt, -hw / 2, -hh, hw, hh);
+          ctx.drawImage(heroArt, -hw / 2, dyTop, hw, hh);
           ctx.restore();
         } else {
-          ctx.drawImage(heroArt, x - hw / 2, y - hh, hw, hh);
+          ctx.drawImage(heroArt, x - hw / 2, y + dyTop, hw, hh);
         }
         ctx.globalAlpha = 1;
 

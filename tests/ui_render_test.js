@@ -109,8 +109,10 @@ for (const zid of Object.keys(GROUND)) {
   const hd = ctx2.calls.drawImage.find((a) => String(a[0]._src).includes("sprites/hero"));
   assert(!!hd, "герой рисуется спрайтом (" + zid + ")");
   const bottom = hd[2] + hd[4]; // dy + dh
-  assert(Math.abs(bottom - GROUND[zid]) <= 2,
-    "земля " + zid + ": низ героя ≈ " + GROUND[zid] + " (got " + bottom.toFixed(1) + ")");
+  // v4.10: спрайт сдвинут на обрезку пустой полосы (стартовый нож, trim 0.062)
+  const expected = GROUND[zid] + 80 * 0.062;
+  assert(Math.abs(bottom - expected) <= 3,
+    "земля " + zid + ": низ спрайта героя ≈ " + expected.toFixed(1) + " (got " + bottom.toFixed(1) + ")");
 }
 
 // --- оружие в руках: v4.9 — спрайт героя меняется на версию с надетым оружием ---
@@ -243,6 +245,21 @@ view.render(401);
 view.heroHit({ dmg: 5, crit: false });
 view.render(402);
 assert(ctx.calls.fillRect.some((r) => r.style === "#9aa2b0"), "выстрел из пистолета: дым из дула");
+
+// --- v4.10: атакующий кадр — во время удара спрайт меняется на hero_<fam>_atk ---
+ctx.calls.drawImage.length = 0;
+view.heroHit({ dmg: 5, crit: false });
+view.render(403); // heroAtkAt только что обновлён — atkP <= 1
+{
+  const hd = heroDraw();
+  assert(hd && String(hd[0]._src).includes("hero_gun_atk"), "в момент атаки рисуется атакующий кадр");
+}
+ctx.calls.drawImage.length = 0;
+view.render(410); // atkP > 1 — обратно idle-спрайт
+{
+  const hd = heroDraw();
+  assert(hd && String(hd[0]._src).includes("hero_gun.png"), "после атаки возвращается idle-спрайт");
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
