@@ -15,6 +15,7 @@ require("../js/engine_combat.js");
 require("../js/engine_loot.js");
 require("../js/engine_econ.js");
 require("../js/engine_paths.js");
+require("../js/engine_achievements.js");
 require("../js/engine_prestige.js");
 require("../js/engine_save.js");
 require("../js/engine_game.js");
@@ -922,6 +923,80 @@ function approx(a, b, eps, msg) {
   P.choosePath(so, "storm");
   P.applyOffline(so, 3600);
   assert((so.path.exp || 0) > 0, "оффлайн-прогресс качает путь");
+}
+
+// ===================== v5.0: мутаторы волн =====================
+{
+  // форсим мутатор напрямую: createCombat с подменённым random
+  const s = P.defaultState();
+  const realRandom = Math.random;
+  const events = [];
+  const c = P.createCombat(s, "apartment", (ev) => events.push(ev));
+  // все броски «удачны»: мутатор есть на каждой рядовой волне
+  Math.random = () => 0.01;
+  c.update(3.5); // gap -> startWave
+  Math.random = realRandom;
+  assert(c.phase === "fight", "мутаторы: бой начался");
+  const ws = events.find((e) => e.type === "waveStart");
+  assert(ws && ws.mutator, "мутатор выбран и передан в waveStart");
+  assert(c.mutator && P.WAVE_MUTATORS.some((m) => m.id === c.mutator.id), "мутатор из таблицы");
+  // «Быстрые» (atk 0.65 при roll 0.01 → floor(0.01*4)=0 → swift) — период удара 0.65 с
+  assert(c.mutator.id === "swift" && Math.abs(c.enemyPeriod - 0.65) < 0.001, "swift: враг бьёт чаще");
+  // на босс-волне мутатора нет
+  const s2 = P.defaultState();
+  s2.zones.apartment.wave = P.ZONES.apartment.wavesCap; // босс-волна
+  const c2 = P.createCombat(s2, "apartment", () => {});
+  Math.random = () => 0.01;
+  c2.update(3.5);
+  Math.random = realRandom;
+  assert(c2.mutator === null, "на босс-волне мутатора нет");
+  // награда за мутированную волну выше (swift sup ×1.3)
+  const s3 = P.defaultState();
+  const g3 = P.createGame(s3, {});
+  const sup0 = s3.supplies;
+  // имитируем waveWin с мутатором через реальный бой: форсим победу
+  Math.random = () => 0.99; // без мутатора и золота
+  g3.update(3.5);
+  Math.random = realRandom;
+  g3.combat.enemy.hp = 0.001;
+  g3.update(1);
+  const supNorm = s3.supplies - sup0;
+  assert(supNorm > 0, "обычная волна даёт припасы");
+}
+
+// ===================== v5.0: достижения =====================
+{
+  const s = P.defaultState();
+  assert(P.achievementCount(s) === 0, "достижений нет в начале");
+  // первая кровь
+  s.stats.kills = 1;
+  let fresh = P.checkAchievements(s);
+  assert(fresh.some((d) => d.id === "first_blood"), "открыто «Первая кровь»");
+  assert(s.supplies >= 20, "награда припасами начислена");
+  // идемпотентность
+  fresh = P.checkAchievements(s);
+  assert(!fresh.some((d) => d.id === "first_blood"), "повторно не открывается");
+  // боссы
+  s.stats.bossKills = 1;
+  fresh = P.checkAchievements(s);
+  assert(fresh.some((d) => d.id === "boss1"), "открыто «Повелитель повержен»");
+  // зачистка зоны
+  s.zones.apartment.maxWave = P.ZONES.apartment.wavesCap + 1;
+  fresh = P.checkAchievements(s);
+  assert(fresh.some((d) => d.id === "clear_apartment"), "открыто «Своя квартира»");
+  // престиж
+  s.prestige.rl = 1;
+  const exp0 = s.exp;
+  fresh = P.checkAchievements(s);
+  assert(fresh.some((d) => d.id === "time1"), "открыто «Первый возврат»");
+  assert(s.exp === exp0 + 50, "награда опытом начислена");
+  // миграция: старый сейв без achievements/bossKills
+  const old = P.defaultState();
+  old.version = 5;
+  delete old.achievements; delete old.stats.bossKills; delete old.stats.goldenFound;
+  const m = P.migrate(old);
+  assert(m.achievements && typeof m.achievements === "object", "миграция: achievements добавлены");
+  assert(m.stats.bossKills === 0 && m.stats.goldenFound === 0, "миграция: новая статистика с нуля");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -47,7 +47,8 @@
       skills,
       dayNight: { phase: "day", phaseEndsAt: 180 },
       event: { nextAt: 600, activeUntil: 0 },
-      stats: { wavesCleared: 0, kills: 0, itemsFound: 0, deaths: 0, startedAt: Date.now() },
+      stats: { wavesCleared: 0, kills: 0, itemsFound: 0, deaths: 0, bossKills: 0, goldenFound: 0, startedAt: Date.now() },
+      achievements: {},    // v5.0: открытые достижения {id: timestamp}
       lastTick: Date.now(),
     };
   };
@@ -126,7 +127,14 @@
       if (id === "district") s.upgradesUnlocked = true;
     }
     s.skills = Object.assign(d.skills, raw.skills);
-    s.stats = Object.assign(d.stats, raw.stats);
+    // v5.0: дефолты статистики — свежим объектом (после Object.assign(d, raw)
+    // d.stats уже ссылается на raw.stats, самоприсвоение дефолты теряло)
+    s.stats = Object.assign(
+      { wavesCleared: 0, kills: 0, itemsFound: 0, deaths: 0, bossKills: 0, goldenFound: 0, startedAt: Date.now() },
+      raw.stats
+    );
+    // v5.0: достижения — по умолчанию пусто
+    s.achievements = Object.assign({}, raw.achievements || {});
     // v3.2: старый autoSell > 0 означал включённую авто-продажу
     s.autoSellOn = raw.autoSellOn != null ? !!raw.autoSellOn : (raw.autoSell || 0) > 0;
     return s;

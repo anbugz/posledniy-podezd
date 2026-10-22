@@ -957,6 +957,10 @@
           shake(4);
           addFloater(ENEMY_X, groundY(state.activeZone || "apartment") - 130, "☠ БОСС: " + ev.enemy.name, "#e85e5e");
         }
+        // v5.0: мутатор волны — флоутер над врагом
+        if (ev && ev.mutator) {
+          addFloater(ENEMY_X, groundY(state.activeZone || "apartment") - 112, ev.mutator.name, "#8ad0e8");
+        }
       },
       /* враг убит — взрыв частиц + падение; босс — тряска экрана и белая вспышка */
       waveWin(ev) {

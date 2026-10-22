@@ -120,6 +120,7 @@
       rlChip: $("rlChip"),
       pathsSection: $("paths-section"), pathsSub: $("pathsSub"), pathsBody: $("paths-body"),
       prestigeSection: $("prestige-section"), prestigeSub: $("prestigeSub"), prestigeBody: $("prestige-body"),
+      achSub: $("achSub"), achBody: $("ach-body"),
       prestigeConfirm: $("prestige-confirm"), prestigeConfirmBody: $("prestige-confirm-body"),
       prestigeYes: $("prestige-yes"), prestigeNo: $("prestige-no"),
     };
@@ -701,6 +702,26 @@
       }
       renderPaths();
       renderPrestige();
+      renderAchievements();
+    }
+
+    /* ---------- Достижения (v5.0) ---------- */
+    function renderAchievements() {
+      const got = state.achievements || {};
+      el.achSub.textContent = P.achievementCount(state) + " / " + P.ACHIEVEMENTS.length;
+      el.achBody.innerHTML = "";
+      for (const def of P.ACHIEVEMENTS) {
+        const open = !!got[def.id];
+        const r = def.reward || {};
+        const rw = r.supplies ? "+" + r.supplies + " 🥫" : r.tech ? "+" + r.tech + " 🔧" : r.exp ? "+" + r.exp + " ⭐" : "";
+        const card = document.createElement("div");
+        card.className = "train-card ach-card" + (open ? " ach-open" : " ach-locked");
+        card.innerHTML =
+          "<span class='t-name'>" + (open ? def.icon : "🔒") + " " + def.name + "</span>" +
+          "<span class='t-desc'>" + def.desc + "</span>" +
+          "<span class='t-flavor'>" + (open ? "получено: " + rw : "награда: " + rw) + "</span>";
+        el.achBody.appendChild(card);
+      }
     }
 
     /* ---------- «Путь героя» (v4.3): полевые приёмы + путь цикла ---------- */

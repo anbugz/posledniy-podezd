@@ -12,6 +12,17 @@
   const HERO_ATK_SEC = 0.5; // герой бьёт размахами раз в 0.5 с
   const ENEMY_ATK_SEC = 1.0; // враг бьёт размахами раз в 1 с
 
+  /* v5.0: мутаторы волн — случайный оттенок рядовой волны (не босса).
+     hp/dps — множители врага, atk — период его удара, sup — множитель
+     припасов за волну (риск ↔ награда). */
+  P.WAVE_MUTATORS = [
+    { id: "swift", name: "⚡ БЫСТРЫЕ",     hp: 1.0, dps: 1.0,  atk: 0.65, sup: 1.3 },
+    { id: "thick", name: "🛡 ТОЛСТОКОЖИЕ", hp: 1.6, dps: 1.0,  atk: 1.0,  sup: 1.4 },
+    { id: "fury",  name: "🔥 ЯРОСТЬ",      hp: 1.0, dps: 1.35, atk: 1.0,  sup: 1.35 },
+    { id: "frail", name: "💀 ХРУПКИЕ",     hp: 0.6, dps: 0.85, atk: 1.0,  sup: 0.8 },
+  ];
+  const MUTATOR_CHANCE = 0.25;
+
   P.WAVE_GAP = WAVE_GAP;
 
   /* Создать сессию боя для зоны. cb(event) — события для UI/тестов:
@@ -40,11 +51,23 @@
       combat.phase = "fight";
       combat.elapsed = 0;
       combat.heroT = HERO_ATK_SEC;   // первый удар героя — через 0.5 с
-      combat.enemyT = ENEMY_ATK_SEC; // первый удар врага — через 1 с
+      // v5.0: мутатор волны — рядовые волны (не боссы), шанс 25%
+      combat.mutator = null;
+      combat.enemyPeriod = ENEMY_ATK_SEC;
+      const isBossWave = P.waveCycle(n, zdef.wavesCap).nEff === zdef.wavesCap;
+      if (!isBossWave && Math.random() < MUTATOR_CHANCE) {
+        const m = P.WAVE_MUTATORS[Math.floor(Math.random() * P.WAVE_MUTATORS.length)];
+        combat.mutator = m;
+        combat.enemy.hp = Math.round(combat.enemy.hp * m.hp);
+        combat.enemy.maxHp = combat.enemy.hp;
+        combat.enemy.dps = combat.enemy.dps * m.dps;
+        combat.enemyPeriod = ENEMY_ATK_SEC * m.atk;
+      }
+      combat.enemyT = combat.enemyPeriod;
       // v4.1: «особая находка» — волна золотится, дроп +2 ступени редкости
       // v4.2: RL≥12 — +1 п.п. к шансу
       combat.golden = Math.random() < P.goldenChance(state);
-      cb && cb({ type: "waveStart", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden });
+      cb && cb({ type: "waveStart", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden, mutator: combat.mutator });
     }
 
     function win() {
@@ -53,7 +76,7 @@
       // при включённых кругах (RL≥5); без престижа zoneClear — один раз.
       const c = P.waveCycle(n, zdef.wavesCap, P.cyclesOn(state));
       const clearedCycle = c.nEff === zdef.wavesCap && (n === zdef.wavesCap || c.cycle > 0);
-      cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden });
+      cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden, mutator: combat.mutator });
       // награды начисляет engine_game (там же лут и технологии)
       if (clearedCycle) {
         cb && cb({ type: "zoneClear", zoneId, cycle: c.cycle });
@@ -121,7 +144,7 @@
       if (combat.enemy.hp <= 0) { win(); return; }
 
       while (combat.enemyT <= 0 && state.hero.hp > 0) {
-        combat.enemyT += ENEMY_ATK_SEC;
+        combat.enemyT += combat.enemyPeriod || ENEMY_ATK_SEC;
         const dmg = combat.enemy.dps * (1 - hero.dr) * ENEMY_ATK_SEC;
         state.hero.hp -= dmg;
         cb && cb({ type: "enemyHit", zoneId, dmg });

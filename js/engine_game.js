@@ -20,6 +20,17 @@
       banner: null,     // {text, until} для баннеров ивентов
     };
 
+    /* v5.0: достижения — проверка после боевых событий, баннер на открытие. */
+    function runAchievements() {
+      const fresh = P.checkAchievements(state);
+      for (const def of fresh) {
+        const r = def.reward || {};
+        const rw = r.supplies ? " +" + r.supplies + " 🥫" : r.tech ? " +" + r.tech + " 🔧" : r.exp ? " +" + r.exp + " ⭐" : "";
+        game.banner = { text: "🏅 ДОСТИЖЕНИЕ: " + def.icon + " " + def.name + rw, until: state.now + 8 };
+        hooks.onAchievement && hooks.onAchievement(def);
+      }
+    }
+
     function onCombatEvent(ev) {
       const zoneId = ev.zoneId;
       const zone = state.zones[zoneId];
@@ -27,8 +38,13 @@
       if (ev.type === "waveWin") {
         state.stats.wavesCleared++;
         state.stats.kills++;
+        // v5.0: статистика для достижений
+        if (ev.enemy.kind === "boss") state.stats.bossKills = (state.stats.bossKills || 0) + 1;
+        if (ev.golden) state.stats.goldenFound = (state.stats.goldenFound || 0) + 1;
         const hero = P.calcHero(state);
-        const sup = Math.floor(P.waveSupplies(ev.wave) * hero.supMult);
+        // v5.0: мутатор волны влияет на награду припасами
+        const mutSup = ev.mutator ? ev.mutator.sup : 1;
+        const sup = Math.floor(P.waveSupplies(ev.wave) * hero.supMult * mutSup);
         state.supplies += sup;
         state.totalSupplies += sup;
         // технологии: множитель шанса ночью и на ивенте
@@ -56,9 +72,11 @@
         // «стены»: если следующая волна непроходима — ничего, фармим дальше
         // (раньше тут был второй +1 — волна перепрыгивала босса 20-й,
         // zoneClear не срабатывал и зона не открывалась без перезагрузки)
+        runAchievements();
         hooks.onWaveWin && hooks.onWaveWin(ev);
       } else if (ev.type === "knockout") {
         state.stats.deaths++;
+        runAchievements();
         // авто-фарм: нокаут — отступаем на волну ниже
         if (state.autoFarm) zone.wave = Math.max(1, zone.wave - 1);
         hooks.onKnockout && hooks.onKnockout(ev);
@@ -75,6 +93,7 @@
           state.prestige.circles = (state.prestige.circles || 0) + 1;
           parts.push("🔄 КРУГ " + (ev.cycle + 1) + " ЗАЧИЩЕН! +1 очко времени при возврате.");
           game.banner = { text: parts.join("  "), until: state.now + 12 };
+          runAchievements();
           hooks.onZoneClear && hooks.onZoneClear(ev);
           return;
         }
@@ -104,11 +123,16 @@
           parts.push("⏳ В пыльном ларце найдены часы «Слава» — на базе доступен «Возврат в первый день».");
         }
         if (parts.length) game.banner = { text: parts.join("  "), until: state.now + 12 };
+        runAchievements();
         hooks.onZoneClear && hooks.onZoneClear(ev);
       } else {
         // v4.1: золотая волна — баннер «особой находки»
         if (ev.type === "waveStart" && ev.golden) {
           game.banner = { text: "✨ ОСОБАЯ НАХОДКА: волна золотится — дроп на 2 ступени выше!", until: state.now + 6 };
+        }
+        // v5.0: мутатор волны — баннер-предупреждение
+        if (ev.type === "waveStart" && ev.mutator) {
+          game.banner = { text: "🧬 МУТАЦИЯ: " + ev.mutator.name + " — награда ×" + ev.mutator.sup, until: state.now + 6 };
         }
         hooks.onEvent && hooks.onEvent(ev);
       }
