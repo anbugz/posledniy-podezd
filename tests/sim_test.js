@@ -218,10 +218,10 @@ function approx(a, b, eps, msg) {
   assert(e10.hp > e5.hp, "босс крепче элиты");
   // штраф −25% к HP: база 30*1.15^1*2*0.75 = 51.75
   approx(e1.hp, Math.floor(30 * 1.15 * 2 * 0.75), 1, "−25% к HP врагов");
-  // v3.6: кругов выше первого нет — волна 21 = волна 1 с базовой сложностью
+  // v5.1: фарм-круги 1–3 растут всегда — волна 21 = волна 1 с ×1.15 HP
   const e21 = P.enemyStats(21, 1, 20);
-  approx(e21.hp, e1.hp, 1, "повтор круга без роста сложности");
-  assert(e21.cycle === 0, "круг всегда первый (престиж-круги — позже)");
+  approx(e21.hp, e1.hp * 1.15, 2, "второй круг: +15% HP");
+  assert(e21.cycle === 1, "круг 1 на волне 21 (фарм-круги без престижа)");
 }
 
 // ---------- waveCheck: стартовый герой проходит волну 1 ----------
@@ -503,10 +503,11 @@ function approx(a, b, eps, msg) {
   const state = P.defaultState();
   state.autoFarm = true;
   state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 2000 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 999999, armor: 900 }, affixes: [], lvl: 0 };
   const game = P.createGame(state, {});
   for (let i = 0; i < 2400; i++) game.update(0.05);
   const zone = state.zones.apartment;
-  // v3.6: каждая победа поднимает волну ровно на 1 — волна-босс (20-я)
+  // каждая победа поднимает волну ровно на 1 — волна-босс (50-я)
   // не перепрыгивается, zoneClear срабатывает
   assert(zone.wave - 1 === state.stats.wavesCleared, "авто-фарм: волна растёт ровно +1 за победу");
   assert(zone.maxWave === zone.wave, "maxWave следует за эскалацией");
@@ -543,7 +544,7 @@ function approx(a, b, eps, msg) {
   assert(s.zones.yard.unlocked === true, "двор открылся ретроактивно из старого сейва");
   assert(s.veteranUnlocked !== true, "ветеран не открыт — двор ещё не зачищен");
   // двор зачищен в старом сейве -> дом и ветеран
-  old.zones.yard = { unlocked: true, level: 1, wave: 45 };
+  old.zones.yard = { unlocked: true, level: 1, wave: 55 };
   const s2 = P.migrate(old);
   assert(s2.zones.house.unlocked === true, "дом открылся ретроактивно");
   assert(s2.veteranUnlocked === true, "ветеран открыт зачисткой двора в старом сейве");
@@ -597,8 +598,8 @@ function approx(a, b, eps, msg) {
 {
   const state = P.defaultState();
   state.autoFarm = true;
-  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 9000 }, affixes: [], lvl: 0 };
-  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 8000, armor: 800 }, affixes: [], lvl: 0 };
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 10000000 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 10000000, armor: 800 }, affixes: [], lvl: 0 };
   for (const zid of ["entrance", "yard", "house", "district"]) state.zones[zid].unlocked = true;
   const game = P.createGame(state, {});
   const clearBoss = (zid) => {
@@ -617,7 +618,7 @@ function approx(a, b, eps, msg) {
   assert(P.buyZoneLevel(state, "apartment"), "квартиру можно улучшать");
   clearBoss("district");
   assert(state.upgradesUnlocked, "зачистка Района открыла Оружейника");
-  state.tech = 100000; // мифическое тестовое оружие дорогое в прокачке
+  state.tech = 1000000000; // мифическое тестовое оружие дорогое в прокачке
   assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник: предметы улучшаются выше +5");
 }
 
@@ -730,13 +731,16 @@ function approx(a, b, eps, msg) {
   approx(P.goldenChance(mk(12)), 0.03, 1e-9, "RL12: +1 п.п. к золоту");
   assert(!P.autoEquipBestOn(mk(15)) && P.autoEquipBestOn(mk(16)), "RL16: авто-«Надеть лучшее»");
 
-  // круги: волна 40 при RL≥5 — второй круг с ×1.15
+  // круги: волна 40 (cap 20) при RL≥5 — второй круг с ×1.15
   const e20 = P.enemyStats(20, 1, 20, "apartment", true);
   const e40 = P.enemyStats(40, 1, 20, "apartment", true);
   assert(e40.cycle === 1 && e40.kind === "boss", "волна 40 — босс второго круга");
   approx(e40.hp / e20.hp, 1.15, 0.001, "круг 2: ×1.15 HP");
   const e40off = P.enemyStats(40, 1, 20, "apartment", false);
-  assert(e40off.cycle === 0 && e40off.hp === e20.hp, "без RL5 кругов нет (как раньше)");
+  assert(e40off.cycle === 1 && Math.abs(e40off.hp - e40.hp) <= 2, "фарм-круги 1–3 растут и без RL5");
+  // фарм-круги ограничены кругом 3 (потолок фарма); дальше — только с RL5
+  assert(P.enemyStats(400, 1, 20, "apartment", false).cycle === 3, "без RL5 рост застревает на круге 3");
+  assert(P.enemyStats(400, 1, 20, "apartment", true).cycle === 19, "с RL5 круги бесконечны");
 
   // доступность и очки
   const s1 = P.defaultState();
@@ -794,14 +798,14 @@ function approx(a, b, eps, msg) {
   const s4 = P.defaultState();
   s4.prestige.rl = 5;
   s4.autoFarm = true;
-  s4.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 99999 }, affixes: [], lvl: 0 };
-  s4.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 99999, armor: 900 }, affixes: [], lvl: 0 };
-  s4.zones.apartment.wave = 40; // босс второго круга
-  s4.zones.apartment.maxWave = 40;
+  s4.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 1, name: "Тест", stats: { dps: 1000000 }, affixes: [], lvl: 0 };
+  s4.equipment.armor = { slot: "armor", rarity: "legendary", tier: 1, name: "Тест", stats: { hp: 1000000, armor: 900 }, affixes: [], lvl: 0 };
+  s4.zones.apartment.wave = 250; // босс 5-го круга (cap 50, cycle 4)
+  s4.zones.apartment.maxWave = 250;
   const g4 = P.createGame(s4, {});
   for (let i = 0; i < 20000 && s4.prestige.circles === 0; i++) g4.update(0.05);
-  assert(s4.prestige.circles === 1, "зачистка 2-го круга дала очко времени");
-  assert(s4.zones.apartment.wave === 41, "после босса круга волна идёт дальше");
+  assert(s4.prestige.circles === 1, "зачистка круга 4+ дала очко времени");
+  assert(s4.zones.apartment.wave === 251, "после босса круга волна идёт дальше");
 
   // RL16: авто-«Надеть лучшее» после находки в сумку
   const s5 = P.defaultState();

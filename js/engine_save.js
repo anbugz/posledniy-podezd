@@ -214,10 +214,12 @@
         const uniq = P.rollUnique(state, "apartment", zdef.tier, Math.random, zone.wave);
         if (uniq) report.items.push(uniq);
       }
-      // v4.2: повторные круги оффлайн (RL≥5) — очки времени
-      if (cyclesOn && zone.wave > zdef.wavesCap && P.waveCycle(zone.wave, zdef.wavesCap, true).nEff === zdef.wavesCap) {
+      // v5.1: повторные круги оффлайн (RL≥5) — только за потолком фарма (200)
+      if (cyclesOn && zone.wave > P.ZONE_MAX_WAVE && P.waveCycle(zone.wave, zdef.wavesCap, true).nEff === zdef.wavesCap) {
         state.prestige.circles = (state.prestige.circles || 0) + 1;
       }
+      // v5.1: без RL≥5 зона фармится до потолка 200 и останавливается
+      if (!cyclesOn && zone.wave >= P.ZONE_MAX_WAVE) break;
       zone.wave += 1;
       zone.maxWave = Math.max(zone.maxWave || 1, zone.wave);
       state.stats.wavesCleared++;

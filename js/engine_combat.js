@@ -72,18 +72,21 @@
 
     function win() {
       const n = zone.wave;
-      // зачистка круга: босс 20-й волны. Повторные круги (cycle>0) — только
-      // при включённых кругах (RL≥5); без престижа zoneClear — один раз.
+      // зачистка круга: босс 50-й волны. v5.1: очко круга — только за круги
+      // за потолком фарма (волна > 200, цикл 4+, требуется RL≥5).
       const c = P.waveCycle(n, zdef.wavesCap, P.cyclesOn(state));
-      const clearedCycle = c.nEff === zdef.wavesCap && (n === zdef.wavesCap || c.cycle > 0);
+      const clearedCycle = c.nEff === zdef.wavesCap && (n === zdef.wavesCap || c.cycle >= 4);
       cb && cb({ type: "waveWin", zoneId, wave: n, enemy: combat.enemy, golden: combat.golden, mutator: combat.mutator });
       // награды начисляет engine_game (там же лут и технологии)
       if (clearedCycle) {
         cb && cb({ type: "zoneClear", zoneId, cycle: c.cycle });
       }
       if (state.autoFarm) {
-        zone.wave += 1;
-        zone.maxWave = Math.max(zone.maxWave || 1, zone.wave); // потолок для ◀ ▶
+        // v5.1: без RL≥5 зона фармится до потолка 200 волн и останавливается
+        if (P.cyclesOn(state) || n < P.ZONE_MAX_WAVE) {
+          zone.wave += 1;
+          zone.maxWave = Math.max(zone.maxWave || 1, zone.wave); // потолок для ◀ ▶
+        }
       }
       combat.phase = "gap";
       combat.timer = WAVE_GAP;

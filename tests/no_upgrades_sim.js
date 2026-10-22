@@ -1,5 +1,5 @@
 /* Калибровка гейтинга v3.2: подбор LOOT_WAVE_GROW / рост DPS врагов.
-   Цель: Квартира (волна 20) зачистится за ~1–3 часа активного фарма БЕЗ прокачек.
+   Цель: Квартира (волна 50) — целевое время уточняется баланс-этапом v5.2 БЕЗ прокачек.
    Запуск: LOOT_G=1.05 DPS_G=1.13 DPS_B=2.4 node tests/no_upgrades_sim.js
    v4.4: seeded RNG (mulberry32) — прогон детерминирован; SEED=N для другого сида,
    например серия: for s in 1 2 3 4 5; do SEED=$s node tests/no_upgrades_sim.js; done */
@@ -58,7 +58,7 @@ function runSim(seed) {
       game.useSkill("rain"); game.useSkill("mark"); game.useSkill("ult");
     }
     const w = state.zones.apartment.wave;
-    if (clearMin === null && w > 20) clearMin = state.now / 60;
+    if (clearMin === null && w > P.ZONES.apartment.wavesCap) clearMin = state.now / 60;
     if (w !== wallWave) { wallWave = w; wallMin = state.now / 60; }
   }
   const h = P.calcHero(state);
@@ -73,7 +73,7 @@ const paramsStr =
   `elite=${P.ENEMY.eliteDps} boss=${P.ENEMY.bossDps}`;
 
 if (process.env.SEEDS) {
-  // серия сидов 1..N: распределение clear20 для стабильной калибровки
+  // серия сидов 1..N: распределение clear50 для стабильной калибровки
   const n = Math.max(2, parseInt(process.env.SEEDS, 10) || 10);
   const res = [];
   for (let s = 1; s <= n; s++) res.push(runSim(s));
@@ -85,7 +85,7 @@ if (process.env.SEEDS) {
   };
   console.log(`seeds=1..${n} ${paramsStr}`);
   console.log(
-    `clear20: min ${pct(clears, 0, (v) => v.toFixed(0) + "мин")} / ` +
+    `clear50: min ${pct(clears, 0, (v) => v.toFixed(0) + "мин")} / ` +
     `p50 ${pct(clears, 0.5, (v) => v.toFixed(0) + "мин")} / ` +
     `p90 ${pct(clears, 0.9, (v) => v.toFixed(0) + "мин")} / ` +
     `max ${pct(clears, 1, (v) => v.toFixed(0) + "мин")}`
@@ -97,7 +97,7 @@ if (process.env.SEEDS) {
   const r = runSim(SEED);
   console.log(
     `seed=${SEED} ${paramsStr} | ` +
-    `clear20=${r.clearMin === null ? "НЕТ" : r.clearMin.toFixed(0) + "мин"} ` +
+    `clear50=${r.clearMin === null ? "НЕТ" : r.clearMin.toFixed(0) + "мин"} ` +
     `финал волна=${r.wave}@${r.wallMin.toFixed(0)}мин ` +
     `dps=${r.dps.toFixed(0)} hp=${r.hp}`
   );

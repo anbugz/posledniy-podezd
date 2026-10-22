@@ -56,20 +56,33 @@
 
     const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
     const slot = P.SLOTS[Math.floor(rng() * P.SLOTS.length)];
-    const rarity = P.rollRarity(kind, rng);
+    const rarity = P.capRarity(state, P.rollRarity(kind, rng), false); // v5.1: потолок зоны
     const item = P.generateItem(slot, tier, rarity, rng, waveMult);
     return P.applyLoot(state, item, tier);
   };
 
-  /* Гарантированные находки по расписанию (v4.1): «страховка от RNG» —
-     даже без случайных дропов герой одет к боссу 20-й волны. */
-  P.GUARANTEED_DROPS = { 3: "weapon", 5: "armor", 8: "boots", 11: "helmet", 14: "gloves", 17: "accessory" };
+  /* Гарантированные находки по расписанию (v4.1, расширено в v5.1 под 50 волн):
+     «страховка от RNG» — герой одет к каждому боссу. */
+  P.GUARANTEED_DROPS = {
+    3: "weapon", 5: "armor", 8: "boots", 11: "helmet", 14: "gloves", 17: "accessory",
+    22: "weapon", 26: "armor", 30: "boots", 34: "helmet", 38: "gloves", 42: "accessory", 47: "weapon",
+  };
+
+  /* v5.1: потолок редкости по зоне (FAPI max item rating): находки не выше
+     rarityCap зоны; золотая волна может пробить потолок на +1 ступень. */
+  P.capRarity = function (state, rarity, golden) {
+    const zdef = P.ZONES[state.activeZone];
+    if (!zdef || zdef.rarityCap == null) return rarity;
+    const cap = Math.min(zdef.rarityCap + (golden ? 1 : 0), P.RARITY_ORDER.length - 1);
+    const i = P.RARITY_ORDER.indexOf(rarity);
+    return P.RARITY_ORDER[Math.min(i, cap)];
+  };
 
   /* Гарантированный дроп слота на волне-расписании (редкость по norm-таблице). */
   P.rollGuaranteedDrop = function (state, slot, tier, rng, wave) {
     rng = rng || Math.random;
     const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
-    const rarity = P.rollRarity("norm", rng);
+    const rarity = P.capRarity(state, P.rollRarity("norm", rng), false);
     const item = P.generateItem(slot, tier, rarity, rng, waveMult);
     return P.applyLoot(state, item, tier);
   };
@@ -90,7 +103,7 @@
     rng = rng || Math.random;
     const waveMult = Math.pow(P.CONFIG.LOOT_WAVE_GROW, Math.max((wave || 1) - 1, 0));
     const slot = P.SLOTS[Math.floor(rng() * P.SLOTS.length)];
-    const rarity = P.bumpRarity(P.rollRarity(kind, rng), 2);
+    const rarity = P.capRarity(state, P.bumpRarity(P.rollRarity(kind, rng), 2), true);
     const item = P.generateItem(slot, tier, rarity, rng, waveMult);
     const res = P.applyLoot(state, item, tier);
     res.golden = true;

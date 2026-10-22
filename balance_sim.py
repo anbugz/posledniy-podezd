@@ -38,7 +38,7 @@ E_LOOP_MULT = 1.30
 ELITE_EVERY = 5          # каждая 5-я (не босс): HP x2.5, DPS x1.3
 BOSS_EVERY = 10
 BOSS_HP_MULT, BOSS_DPS_MULT = 3.5, 1.4
-WAVES_CAP = 20
+WAVES_CAP = 50  # v5.1
 
 # герой
 HP_BASE = 100

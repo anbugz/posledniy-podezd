@@ -15,13 +15,13 @@
   };
 
   /* Абсолютный номер волны -> эффективная волна внутри круга и номер круга.
-     v4.2: круги 2+ возвращаются как престиж-механика — только при RL≥5
-     (cyclesOn = P.cyclesOn(state)); иначе после зачистки зоны волны
-     повторяются с базовой сложностью (cycle всегда 0). */
+     v5.1: фарм-круги (1–3, волны 51–200) растут ВСЕГДА — стена фарма как в FAPI;
+     бесконечные круги 4+ (за потолком 200) — престиж-механика при RL≥5. */
   P.waveCycle = function (n, cap, cyclesOn) {
-    cap = cap || 20;
+    cap = cap || 50;
     const nEff = ((n - 1) % cap) + 1;
-    const cycle = cyclesOn ? Math.floor((n - 1) / cap) : 0;
+    const raw = Math.floor((n - 1) / cap);
+    const cycle = cyclesOn ? raw : Math.min(raw, 3);
     return { nEff, cycle };
   };
 
