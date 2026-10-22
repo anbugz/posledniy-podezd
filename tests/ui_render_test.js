@@ -261,5 +261,27 @@ view.render(410); // atkP > 1 — обратно idle-спрайт
   assert(hd && String(hd[0]._src).includes("hero_gun.png"), "после атаки возвращается idle-спрайт");
 }
 
+// --- v4.12: атакующий кадр монстра — во время его удара спрайт меняется ---
+{
+  const st3 = P.defaultState();
+  for (const z of Object.keys(st3.zones)) st3.zones[z].unlocked = true;
+  const g3 = P.createGame(st3, {});
+  const ctx3 = makeCtx();
+  const v3 = P.initBattleView(g3, { getContext: () => ctx3 });
+  g3.setZone("house");
+  let k = 0;
+  while (g3.combat.phase !== "fight" && k++ < 400) g3.update(0.05);
+  assert(g3.combat.phase === "fight", "бой в доме идёт (для atk-кадра)");
+  v3.render(500); // инициализируем lastT
+  v3.enemyHit({ dmg: 5 });
+  v3.render(501); // enemyAtkAt только что обновлён — atkP <= 1
+  const ea = ctx3.calls.drawImage.find((a) => /_(grunt|boss)_atk/.test(String(a[0]._src)));
+  assert(!!ea, "в момент атаки монстра рисуется его атакующий кадр");
+  ctx3.calls.drawImage.length = 0;
+  v3.render(520); // atkP > 1 — обратно idle
+  const ei = ctx3.calls.drawImage.find((a) => /_(grunt|boss)_atk/.test(String(a[0]._src)));
+  assert(!ei, "после атаки монстр возвращается в idle-спрайт");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

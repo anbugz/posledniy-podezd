@@ -45,9 +45,12 @@
   // v4.6: иконки оружия — фолбэк, если спрайт героя с оружием ещё не загрузился
   for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("w_" + fam, "img/icons/icon_" + fam + ".png");
   // v4.10: детализированные hd-спрайты врагов (старые файлы оставлены как запас)
+  // v4.12: атакующие кадры врагов (<zone>_<type>_atk.png)
   for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
     loadArt(z + "_grunt", "img/sprites/" + z + "_grunt_hd.png");
     loadArt(z + "_boss", "img/sprites/" + z + "_boss_hd.png");
+    loadArt(z + "_grunt_atk", "img/sprites/" + z + "_grunt_atk.png");
+    loadArt(z + "_boss_atk", "img/sprites/" + z + "_boss_atk.png");
   }
   const artReady = (im) => im && im.complete && im.naturalWidth > 0;
 
@@ -74,6 +77,14 @@
   const HERO_TRIM = {
     knife: 0.062, bat: 0.04, gun: 0.055, rifle: 0.09,
     knife_atk: 0.107, bat_atk: 0.071, gun_atk: 0.075, rifle_atk: 0.089,
+  };
+  /* v4.12: нижняя кромка атакующих кадров врагов (альфа-замер). */
+  const SPRITE_TRIM_ATK = {
+    apartment_grunt: 0.122, apartment_boss: 0.001,
+    entrance_grunt: 0.063, entrance_boss: 0.001,
+    yard_grunt: 0.184, yard_boss: 0.085,
+    house_grunt: 0.24, house_boss: 0.138,
+    district_grunt: 0.256, district_boss: 0.1,
   };
   /* Спрайт врага: зона + тип (босс/грунт), с откатом на старые спрайты. */
   function enemyArt(zoneId, kind) {
@@ -628,16 +639,19 @@
 
       // спрайт врага зоны (v4.6: земля по зоне, обрезка пустоты спрайта,
       // idle-анимации по типу, антисипация атаки, вспышка при попадании)
-      const eArt = enemyArt(zoneIdE, e.kind);
+      // v4.12: во время атаки — настоящий атакующий кадр вместо наскока
+      const key = zoneIdE + "_" + (e.kind === "boss" ? "boss" : "grunt");
+      const atkArt = atkP <= 1 ? ART[key + "_atk"] : null;
+      const hasAtkArt = !!(atkArt && artReady(atkArt));
+      const eArt = hasAtkArt ? atkArt : enemyArt(zoneIdE, e.kind);
       if (eArt) {
         const h = e.kind === "boss" ? 118 : e.kind === "elite" ? 92 : 70;
         const w = Math.round(h * (eArt.naturalWidth / eArt.naturalHeight));
-        const key = zoneIdE + "_" + (e.kind === "boss" ? "boss" : "grunt");
-        const trim = SPRITE_TRIM[key] || 0;
+        const trim = (hasAtkArt ? SPRITE_TRIM_ATK[key] : SPRITE_TRIM[key]) || 0;
         const fly = SPRITE_FLY[key] || 0;
-        // антисипация: приседание перед наскоком (первая треть замаха)
-        const antic = atkP <= 0.35 ? swing(atkP / 0.35) : 0;
-        const stretch = atkP > 0.35 && atkP <= 1 ? swing((atkP - 0.35) / 0.65) : 0;
+        // антисипация/растяжка — только когда нет атакующего кадра
+        const antic = !hasAtkArt && atkP <= 0.35 ? swing(atkP / 0.35) : 0;
+        const stretch = !hasAtkArt && atkP > 0.35 && atkP <= 1 ? swing((atkP - 0.35) / 0.65) : 0;
         // idle: грунт переступает, элита пульсирует, босс дышит, летающие парят
         const idleBob = fly ? Math.sin(t / 9) * 3
           : e.kind === "grunt" ? -Math.abs(Math.sin(t / 6)) * 2 : 0;
