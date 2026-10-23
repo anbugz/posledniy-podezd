@@ -162,6 +162,14 @@
     yard:      { slot: "accessory", name: "Свисток «Ветеран»",     icon: "icon_radio", rarity: "epic",  affixes: ["stockpile", "critdmg"] },
     house:     { slot: "helmet",    name: "Каска «Котельная»",     icon: "icon_helmet", rarity: "epic",  affixes: ["regen", "stockpile"] },
     district:  { slot: "weapon",    name: "«Возмездие»",           icon: "icon_rifle", family: "rifle", rarity: "legendary", affixes: ["double", "critdmg", "stockpile"] },
+    // v5.2: по унику на каждую зону второй лестницы
+    mall:      { slot: "gloves",    name: "Перчатки «Распродажа»", icon: "icon_gloves", rarity: "legendary", affixes: ["double", "stockpile"] },
+    metro:     { slot: "boots",     name: "Ботинки «Туннельные»",  icon: "icon_boots", rarity: "legendary", affixes: ["regen", "critdmg"] },
+    hospital:  { slot: "armor",     name: "Халат «Главврач»",      icon: "icon_armor", rarity: "legendary", affixes: ["regen", "stockpile"] },
+    powerplant:{ slot: "helmet",    name: "Шлем «Турбина»",        icon: "icon_helmet", rarity: "legendary", affixes: ["critdmg", "double"] },
+    tower:     { slot: "accessory", name: "Тюнер «Эфир»",          icon: "icon_radio", rarity: "legendary", affixes: ["stockpile", "critdmg", "regen"] },
+    center:    { slot: "weapon",    name: "«Парадный клинок»",     icon: "icon_bat", family: "bat", rarity: "mythic", affixes: ["double", "critdmg", "stockpile"] },
+    nest:      { slot: "weapon",    name: "«Жало Королевы»",       icon: "icon_knife", family: "knife", rarity: "mythic", affixes: ["double", "critdmg", "regen", "stockpile"] },
   };
 
   /* Генерация предмета.

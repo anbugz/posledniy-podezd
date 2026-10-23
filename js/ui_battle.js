@@ -120,6 +120,14 @@
       yard:      { color: "#7a9a4d", every: 14, vx: [-0.8, -0.3], vy: [0.15, 0.4], size: 2, alpha: 0.6, from: "right" },
       house:     { color: "#e87d4a", every: 8,  vx: [-0.1, 0.2],  vy: [-0.7, -0.3], size: 2, alpha: 0.7, from: "bottom" },
       district:  { color: "#aab4c8", every: 10, vx: [-0.45, -0.1], vy: [0.2, 0.45], size: 2, alpha: 0.55, from: "top" },
+      // v5.2: амбиент второй лестницы зон
+      mall:      { color: "#d8c98a", every: 11, vx: [-0.2, 0.15], vy: [0.1, 0.25], size: 1, alpha: 0.45, from: "top" },
+      metro:     { color: "#6a7a9a", every: 8,  vx: [0.1, 0.4],   vy: [0.05, 0.2], size: 1, alpha: 0.5, from: "left" },
+      hospital:  { color: "#9ad8c8", every: 12, vx: [-0.1, 0.1],  vy: [-0.3, -0.1], size: 1, alpha: 0.4, from: "bottom" },
+      powerplant:{ color: "#e89a4a", every: 7,  vx: [-0.15, 0.2], vy: [-0.8, -0.4], size: 2, alpha: 0.7, from: "bottom" },
+      tower:     { color: "#c8d8f0", every: 9,  vx: [-0.6, -0.2], vy: [0.1, 0.3],  size: 1, alpha: 0.5, from: "top" },
+      center:    { color: "#b8a8d8", every: 10, vx: [-0.4, -0.1], vy: [0.2, 0.4],  size: 2, alpha: 0.5, from: "top" },
+      nest:      { color: "#8ad87a", every: 6,  vx: [-0.2, 0.2],  vy: [-0.5, -0.2], size: 2, alpha: 0.6, from: "bottom" },
     };
     let lastAmbientTick = -1;
     function spawnAmbient(t, zoneId) {
@@ -217,7 +225,13 @@
       for (let x = 0; x < W; x += 24) {
         ctx.beginPath(); ctx.moveTo(x + 0.5, FLOOR_Y); ctx.lineTo(x + 0.5, H); ctx.stroke();
       }
-      if (zoneId === "entrance") drawEntrance(night, t);
+      // v5.2: новым зонам до появления своего арта — ближайший по духу кодовый фон
+      const ZONE_DRAW = {
+        mall: drawApartment, metro: drawEntrance, hospital: drawApartment,
+        powerplant: drawHouse, tower: drawDistrict, center: drawDistrict, nest: drawDistrict,
+      };
+      if (ZONE_DRAW[zoneId]) ZONE_DRAW[zoneId](night, t);
+      else if (zoneId === "entrance") drawEntrance(night, t);
       else if (zoneId === "yard") drawYard(night, t);
       else if (zoneId === "house") drawHouse(night, t);
       else if (zoneId === "district") drawDistrict(night, t);

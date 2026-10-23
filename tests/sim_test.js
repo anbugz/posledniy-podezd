@@ -622,6 +622,37 @@ function approx(a, b, eps, msg) {
   assert(P.upgradeItem(state, "equip", "weapon"), "Оружейник: предметы улучшаются выше +5");
 }
 
+// ---------- v5.2: вторая лестница зон — от ТЦ до Гнезда ----------
+{
+  assert(P.ZONE_ORDER.length === 12, "в игре 12 зон");
+  assert(P.ZONES.district.next === "mall" && P.ZONES.nest.next === null, "цепочка: Район → … → Гнездо");
+  for (const zid of P.ZONE_ORDER) assert(P.UNIQUES[zid], zid + ": есть уник");
+
+  const state = P.defaultState();
+  assert(state.zones.nest && state.zones.mall, "новые зоны есть в дефолтном сейве");
+  assert(!state.zones.mall.unlocked && !state.zones.nest.unlocked, "вторая лестница закрыта на старте");
+  state.autoFarm = true;
+  state.equipment.weapon = { slot: "weapon", rarity: "mythic", tier: 11, name: "Тест", stats: { dps: 1e12 }, affixes: [], lvl: 0 };
+  state.equipment.armor = { slot: "armor", rarity: "legendary", tier: 11, name: "Тест", stats: { hp: 1e12, armor: 900 }, affixes: [], lvl: 0 };
+  const game = P.createGame(state, {});
+  // идём по цепочке: зачистка босса зоны открывает следующую
+  for (let i = 0; i < P.ZONE_ORDER.length - 1; i++) {
+    const zid = P.ZONE_ORDER[i];
+    const nxt = P.ZONES[zid].next;
+    state.zones[zid].unlocked = true;
+    state.zones[zid].wave = P.ZONES[zid].wavesCap;
+    state.zones[zid].maxWave = state.zones[zid].wave;
+    assert(game.setZone(zid), "переход в " + zid);
+    let guard = 0;
+    while (state.zones[zid].wave <= P.ZONES[zid].wavesCap && guard++ < 20000) game.update(0.05);
+    assert(state.zones[zid].wave > P.ZONES[zid].wavesCap, zid + ": босс круга убит");
+    assert(state.zones[nxt].unlocked, "зачистка " + zid + " открыла " + nxt);
+  }
+  // уник Гнезда выдаётся и не ограничен потолком редкости
+  const u = P.rollUnique(state, "nest", 11, Math.random, 50);
+  assert(u && u.item && u.item.name === "«Жало Королевы»" && u.item.rarity === "mythic", "уник Гнезда — мифик вне потолка");
+}
+
 // ---------- v4.0: опыт за волны и «перекус» ----------
 {
   const state = P.defaultState();
@@ -762,11 +793,11 @@ function approx(a, b, eps, msg) {
   s2.prestige.bestRarity = 3; // эпик
   s2.prestige.circles = 2;
   const prev = P.prestigePointsPreview(s2);
-  assert(prev.zones === 5 && prev.zonePts === 10, "очки: 5 зон ×2");
-  assert(prev.total === 10 + 3 + 2, "очки: зоны + редкость + круги");
+  assert(prev.zones === 12 && prev.zonePts === 24, "очки: 12 зон ×2");
+  assert(prev.total === 24 + 3 + 2, "очки: зоны + редкость + круги");
   const earned = P.doPrestige(s2);
-  assert(earned === 15, "заработано 15 очков времени");
-  assert(s2.prestige.points === 15 && s2.prestige.cycles === 1, "очки и цикл начислены");
+  assert(earned === 29, "заработано 29 очков времени");
+  assert(s2.prestige.points === 29 && s2.prestige.cycles === 1, "очки и цикл начислены");
   assert(s2.prestige.bestRarity === 0 && s2.prestige.circles === 0, "счётчики цикла обнулены");
   // сброс
   assert(s2.supplies === 0 && s2.tech === 0 && s2.exp === 0 && s2.expSpent === 0, "ресурсы сброшены");
@@ -781,7 +812,7 @@ function approx(a, b, eps, msg) {
 
   // покупка RL за очки
   assert(P.buyRl(s2), "очко времени -> RL 1");
-  assert(s2.prestige.rl === 1 && s2.prestige.points === 14, "RL вырос, очко списано");
+  assert(s2.prestige.rl === 1 && s2.prestige.points === 28, "RL вырос, очко списано");
   const sPoor = P.defaultState();
   assert(!P.buyRl(sPoor), "без очков RL не купить");
 
