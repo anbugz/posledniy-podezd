@@ -34,6 +34,9 @@
   loadArt("bg_yard", "img/bg/bg_yard.png");
   loadArt("bg_house", "img/bg/bg_house.png");
   loadArt("bg_district", "img/bg/bg_district.png");
+  // v5.2: фоны второй лестницы зон
+  for (const z of ["mall", "metro", "hospital", "powerplant", "tower", "center", "nest"])
+    loadArt("bg_" + z, "img/bg/bg_" + z + ".png");
   loadArt("hero", "img/sprites/hero.png");
   loadArt("heroHands", "img/sprites/hero_hands.png"); // v4.6: герой без оружия (оружие рисуем отдельно)
   // v4.9: детализированные спрайты героя с реальным оружием в руках
@@ -46,7 +49,8 @@
   for (const fam of ["knife", "bat", "gun", "rifle"]) loadArt("w_" + fam, "img/icons/icon_" + fam + ".png");
   // v4.10: детализированные hd-спрайты врагов (старые файлы оставлены как запас)
   // v4.12: атакующие кадры врагов (<zone>_<type>_atk.png)
-  for (const z of ["apartment", "entrance", "yard", "house", "district"]) {
+  for (const z of ["apartment", "entrance", "yard", "house", "district",
+                   "mall", "metro", "hospital", "powerplant", "tower", "center", "nest"]) {
     loadArt(z + "_grunt", "img/sprites/" + z + "_grunt_hd.png");
     loadArt(z + "_boss", "img/sprites/" + z + "_boss_hd.png");
     loadArt(z + "_grunt_atk", "img/sprites/" + z + "_grunt_atk.png");
@@ -57,7 +61,8 @@
   /* v4.6: линия земли по зонам, когда фон — сгенерированный арт (480×270).
      Подобрано визуально: где на арте «стоят» персонажи (передний план).
      Кодовые фоны рисуются от FLOOR_Y — там ничего не меняем. */
-  const GROUND_Y_ART = { apartment: 226, entrance: 228, yard: 234, house: 234, district: 246 };
+  const GROUND_Y_ART = { apartment: 226, entrance: 228, yard: 234, house: 234, district: 246,
+    mall: 222, metro: 218, hospital: 226, powerplant: 224, tower: 240, center: 230, nest: 230 };
   function groundY(zoneId) {
     return artReady(ART["bg_" + zoneId]) ? (GROUND_Y_ART[zoneId] || FLOOR_Y) : FLOOR_Y;
   }
@@ -70,6 +75,14 @@
     yard_grunt: 0.21, yard_boss: 0.02,
     house_grunt: 0.20, house_boss: 0.04,
     district_grunt: 0.11, district_boss: 0.07,
+    // v5.2: замеры по альфа-каналу новых спрайтов
+    mall_grunt: 0.021, mall_boss: 0.006,
+    metro_grunt: 0.121, metro_boss: 0.245,
+    hospital_grunt: 0.16, hospital_boss: 0.01,
+    powerplant_grunt: 0.022, powerplant_boss: 0.012,
+    tower_grunt: 0.015, tower_boss: 0.014,
+    center_grunt: 0.014, center_boss: 0.004,
+    nest_grunt: 0.101, nest_boss: 0.018,
   };
   /* Летающие спрайты: низ контента держим НАД землёй + покачивание. */
   const SPRITE_FLY = { district_grunt: 16, district_boss: 22, drone: 18 };
